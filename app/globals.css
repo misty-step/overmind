@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/*
+ * Overmind Design System — Zerg Aesthetic
+ *
+ * Identity: Organic command-center, bioluminescent, living
+ * Dark-mode with purple hive accent
+ * Typography: Outfit (display) + Inter (body/UI)
+ */
+
+:root {
+  /* Base colors - Organic dark palette with purple undertones */
+  --bg-void: #0C0A0F;
+  --bg-creep: #12101A;
+  --bg-carapace: #1A1726;
+  --bg-elevated: #252236;
+
+  /* Hive Purple - Primary accent, bioluminescent */
+  --hive-purple: #A855F7;
+  --hive-purple-dim: #7C3AED;
+  --hive-glow: #A855F740;
+
+  /* Bio colors - Status indicators */
+  --spawn-green: #34D399;
+  --bio-cyan: #22D3EE;
+  --spore-red: #F87171;
+  --caution-amber: #FBBF24;
+
+  /* Text hierarchy */
+  --text-light: #F5F5F7;
+  --text-mid: #A1A1AA;
+  --text-dim: #71717A;
+  --text-faint: #52525B;
+
+  /* Borders */
+  --border-subtle: #2D2640;
+  --border-glow: #A855F730;
+}
+
+@theme inline {
+  --color-bg-void: var(--bg-void);
+  --color-bg-creep: var(--bg-creep);
+  --color-bg-carapace: var(--bg-carapace);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-hive: var(--hive-purple);
+  --color-hive-dim: var(--hive-purple-dim);
+  --color-hive-glow: var(--hive-glow);
+  --color-spawn: var(--spawn-green);
+  --color-bio-cyan: var(--bio-cyan);
+  --color-spore: var(--spore-red);
+  --color-caution: var(--caution-amber);
+  --color-text-light: var(--text-light);
+  --color-text-mid: var(--text-mid);
+  --color-text-dim: var(--text-dim);
+  --color-text-faint: var(--text-faint);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-glow: var(--border-glow);
+  --font-display: "Outfit", var(--font-geist-sans), system-ui, sans-serif;
+  --font-body: "Inter", var(--font-geist-sans), system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg-void);
+  color: var(--text-light);
+  font-family: var(--font-body);
+}
+
+/* Data display - tabular numbers for metrics */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status indicators - organic dots */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-healthy { background-color: var(--spawn-green); }
+.status-warning { background-color: var(--caution-amber); }
+.status-error { background-color: var(--spore-red); }
+.status-signal { background-color: var(--hive-purple); }
+
+/* Card - organic container */
+.card {
+  background: var(--bg-creep);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+/* Button with glow */
+.btn-primary {
+  background: var(--hive-purple);
+  color: white;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px var(--hive-glow);
+}
+
+.btn-primary:hover {
+  background: var(--hive-purple-dim);
+}
+
+.btn-secondary {
+  background: var(--bg-carapace);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+/* Active nav state */
+.nav-active {
+  background: var(--hive-glow);
+  border: 1px solid var(--border-glow);
+  border-radius: 8px;
+}
+
+/* Traction badge */
+.badge-traction {
+  background: var(--hive-glow);
+  border: 1px solid var(--border-glow);
+  color: var(--hive-purple);
+  border-radius: 6px;
+}

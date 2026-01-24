@@ -2,179 +2,95 @@
 
 **Portfolio command center for indie hackers.**
 
-One command. All your products. Instant traction signals.
+Track traffic, health, and traction signals across all your products. One dashboard. Real insights.
 
-```
-$ overmind
+## The Problem
 
-┌──────────────────────────────────────────────────────────────────┐
-│ PORTFOLIO - Week of Jan 23                                       │
-├──────────────────────────────────────────────────────────────────┤
-│ Product         │ Visits │ Devices │ Bounce │ Health │ Status   │
-├──────────────────────────────────────────────────────────────────┤
-│ Line Jam        │    652 │      48 │    60% │   🟢   │ ⚠️ SIGNAL │
-│ Bibliomnomnom   │    334 │      32 │    50% │   🟢   │ ⚠️ SIGNAL │
-│ Chrondle        │    101 │      39 │    31% │   🟢   │ ⚠️ SIGNAL │
-│ Volume          │     55 │      13 │    54% │   🟢   │ 🟢 Active │
-│ ...             │        │         │        │        │          │
-└──────────────────────────────────────────────────────────────────┘
+You have 10+ products. Each has its own Vercel dashboard, Stripe dashboard, Sentry project. You're drowning in tabs. You miss the signal that Line Jam is suddenly getting traction because you're busy checking Chrondle's error logs.
 
-📊 1,188 total visits across 7 active products
-🏥 16/17 sites healthy
+## The Solution
 
-⚠️ TRACTION SIGNALS:
-   Line Jam: 652 visits (48 devices)
-   Bibliomnomnom: 334 visits (32 devices)
-   Chrondle: 101 visits (39 devices)
-```
+Overmind aggregates everything into one war room:
 
-## Why Overmind?
+- **Traffic** — Visits, devices, bounce rate (via Vercel Drains)
+- **Health** — HTTP status, response time
+- **Traction Signals** — Automatic alerts when something's working
+- *Coming soon:* Revenue (Stripe), Errors (Sentry)
 
-**The indie hacker's dilemma:** You're shipping experiments fast. Maybe 5, 10, 15 products in flight. Each has its own dashboard, its own analytics, its own metrics. Checking them all takes forever.
+## Stack
 
-**The solution:** One command that aggregates everything. See which experiments are getting traction. Ignore the rest. Double down on winners.
+- **Frontend:** Next.js 15 (App Router)
+- **Backend:** Convex
+- **Auth:** Clerk
+- **Analytics:** Vercel Drains (real-time event streaming)
+- **Styling:** Tailwind CSS 4
 
-## Philosophy
-
-- **Zero config** — Uses your existing CLI auth (Vercel, Stripe, GitHub)
-- **Passive discovery** — Run weekly, spot anomalies, move on
-- **Signal over noise** — Only surfaces what matters (>100 visits = traction signal)
-- **CLI-first** — Fits your terminal workflow, no browser tabs
-
-## Features
-
-| Feature | Status |
-|---------|--------|
-| Vercel Analytics (visits, devices, bounce) | ✅ |
-| Site health checks | ✅ |
-| Traction signal detection | ✅ |
-| HTML export | ✅ |
-| Stripe revenue integration | 🔜 |
-| Sentry error counts | 🔜 |
-| Historical tracking | 🔜 |
-| Web dashboard | 🔜 |
-
-## Installation
+## Quick Start
 
 ```bash
-# Clone and install
-git clone https://github.com/misty-step/overmind.git
-cd overmind
+# Install dependencies
 pnpm install
 
-# Run
+# Set up environment
+cp .env.local.example .env.local
+# Fill in Clerk + Convex keys
+
+# Run development
 pnpm dev
-
-# Or install globally
-pnpm build
-npm link
-overmind
 ```
 
-## Configuration
-
-Products are defined in `config/products.yaml`:
-
-```yaml
-products:
-  - name: My App
-    domain: myapp.com
-    vercel_project_id: prj_xxxxx  # From: vercel projects ls --json
-    stripe_product_id: prod_xxxxx  # From: stripe products list
-    github_repo: username/repo
-```
-
-### Getting IDs
+## Environment Variables
 
 ```bash
-# Vercel project IDs
-npx vercel projects ls --json | jq '.[].id'
+# Convex
+NEXT_PUBLIC_CONVEX_URL=
+CONVEX_DEPLOYMENT=
 
-# Stripe product IDs
-stripe products list --limit 100
-
-# GitHub repos
-gh repo list your-org --json name
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
 ```
 
-## Auth
+## Setting Up Vercel Drains
 
-Overmind uses your existing CLI auth. No API tokens to manage.
-
-| Service | Auth Source |
-|---------|-------------|
-| Vercel | `~/Library/Application Support/com.vercel.cli/auth.json` |
-| Stripe | `~/.config/stripe/config.toml` (coming soon) |
-| GitHub | `gh` CLI auth |
-
-**Prerequisite:** Run `vercel login` once.
-
-## Usage
+Overmind receives analytics via Vercel Drains (Pro plan required).
 
 ```bash
-# Default: CLI output
-overmind
-
-# HTML dashboard
-overmind --html
-# Opens ~/overmind-dashboard.html
-
-# Single product
-overmind volume
-
-# Watch mode (coming soon)
-overmind --watch
+# Set up drain for all your Vercel projects
+./scripts/create-unified-drain.sh
 ```
 
-## The Workflow
-
-**Weekly (5 min):**
-1. Run `overmind`
-2. Note any traction signals (⚠️)
-3. If signal: investigate traffic source, consider doubling down
-4. If no signal: keep shipping experiments
-
-**That's it.** Marketing for the experimentation phase should be nearly invisible.
-
-## Roadmap
-
-### v0.2 — Revenue & Errors
-- Stripe revenue per product
-- Sentry error counts
-- Week-over-week deltas
-
-### v0.3 — Historical
-- Store metrics over time
-- Trend visualization
-- Anomaly detection
-
-### v0.4 — Web Dashboard
-- Deployed web view
-- Mobile-friendly
-- Auto-refresh
-
-### v1.0 — Product
-- Multi-user support
-- Team portfolios
-- Public launch
+This creates a single drain that streams all pageview events to Overmind in real-time.
 
 ## Architecture
 
 ```
-overmind/
-├── src/
-│   └── cli.ts           # Main entry point
-├── config/
-│   └── products.yaml    # Product registry
-├── docs/
-│   └── ...              # Additional documentation
-└── package.json
+app/
+  dashboard/           # Main dashboard (protected)
+    products/          # Product management
+    settings/          # User settings
+  components/          # Shared components
+convex/
+  schema.ts            # Data model
+  products.ts          # Product CRUD
+  metrics.ts           # Metrics queries
+  analytics.ts         # Drain event aggregation
+  http.ts              # HTTP endpoint for drains
+scripts/
+  create-unified-drain.sh   # One-click drain setup
 ```
 
-## Contributing
+## Roadmap
 
-This started as an internal tool for MistyStep. If you're an indie hacker with a portfolio of experiments, we'd love your feedback.
+- [x] Product registry + import
+- [x] Health checks
+- [x] Vercel Drains integration
+- [ ] Stripe integration (MRR, subscribers)
+- [ ] Sentry integration (error counts)
+- [ ] Vercel OAuth (auto-discover projects)
+- [ ] Traction signal alerts
+- [ ] Historical trends + sparklines
 
 ## License
 
-MIT
+Private. Not for distribution.

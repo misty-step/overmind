@@ -1,0 +1,34 @@
+{
+  "name": "overmind",
+  "version": "0.1.0",
+  "description": "Portfolio command center for indie hackers. One command to see all your products.",
+  "type": "module",
+  "bin": {
+    "overmind": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "dashboard",
+    "analytics",
+    "indie-hacker",
+    "portfolio",
+    "vercel",
+    "stripe",
+    "monitoring"
+  ],
+  "author": "MistyStep",
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

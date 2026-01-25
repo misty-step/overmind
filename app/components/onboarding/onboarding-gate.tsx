@@ -1,28 +1,24 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 
 import { api } from "@/convex/_generated/api";
 import { OnboardingModal } from "./onboarding-modal";
 
 export function OnboardingGate() {
   const onboardingStatus = useQuery(api.settings.getOnboardingStatus);
-  const [showModal, setShowModal] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
-  // Show modal when status loads and onboarding is not completed
-  useEffect(() => {
-    if (onboardingStatus && !onboardingStatus.completed) {
-      setShowModal(true);
-    }
-  }, [onboardingStatus]);
+  const handleClose = useCallback(() => {
+    setDismissed(true);
+  }, []);
 
-  const handleClose = () => {
-    setShowModal(false);
-  };
+  // Don't render anything while loading or if no user
+  if (onboardingStatus === undefined || onboardingStatus === null) return null;
 
-  // Don't render anything while loading
-  if (onboardingStatus === undefined) return null;
+  // Derive open state: show if not completed AND not dismissed this session
+  const isOpen = !onboardingStatus.completed && !dismissed;
 
-  return <OnboardingModal isOpen={showModal} onClose={handleClose} />;
+  return <OnboardingModal isOpen={isOpen} onClose={handleClose} />;
 }

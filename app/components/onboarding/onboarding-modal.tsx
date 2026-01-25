@@ -6,7 +6,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { WelcomeStep } from "@/app/components/onboarding/steps/welcome";
 import { AddProductStep } from "@/app/components/onboarding/steps/add-product";
-import { ConfigureDrainsStep } from "@/app/components/onboarding/steps/configure-drains";
+import { ConnectVercelStep } from "@/app/components/onboarding/steps/connect-vercel";
 import { FirstRefreshStep } from "@/app/components/onboarding/steps/first-refresh";
 import { CompleteStep } from "@/app/components/onboarding/steps/complete";
 
@@ -64,7 +64,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
 
   let stepContent = <WelcomeStep onNext={handleNext} />;
   if (step === 1) stepContent = <AddProductStep onNext={handleNext} />;
-  if (step === 2) stepContent = <ConfigureDrainsStep onNext={handleNext} />;
+  if (step === 2) stepContent = <ConnectVercelStep onNext={handleNext} />;
   if (step === 3) stepContent = <FirstRefreshStep onNext={handleNext} />;
   if (step === 4) stepContent = <CompleteStep onClose={handleComplete} />;
 

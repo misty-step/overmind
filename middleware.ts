@@ -4,6 +4,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/api/auth/vercel/callback",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

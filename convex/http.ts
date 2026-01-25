@@ -69,10 +69,33 @@ http.route({
       const signature = request.headers.get("stripe-signature");
       const rawBody = await request.text();
 
-      // TODO: Verify Stripe signature with webhook secret
-      void signature;
+      if (!signature) {
+        return new Response(
+          JSON.stringify({ error: "Missing stripe-signature header" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
 
-      const event = JSON.parse(rawBody);
+      // Verify signature
+      const verification = await ctx.runAction(internal.stripe.verifyAndParseWebhook, {
+        rawBody,
+        signature,
+      });
+
+      if (!verification.valid) {
+        const isConfigError = verification.error?.includes("not configured");
+        console.error("[stripe] Signature verification failed:", verification.error);
+        return new Response(
+          JSON.stringify({ error: verification.error }),
+          {
+            status: isConfigError ? 500 : 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const event = verification.event as any;
       const dataObject = event?.data?.object;
       const eventType = event?.type as string | undefined;
 

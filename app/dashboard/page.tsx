@@ -7,8 +7,6 @@ import { api } from "@/convex/_generated/api";
 import { ProductCard, type ProductWithMetrics } from "@/app/components/product-card";
 import { StatsCard } from "@/app/components/stats-card";
 
-type ProductStatus = "healthy" | "warning" | "error" | "signal";
-
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return "just now";
@@ -20,10 +18,11 @@ function formatTimeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
-function resolveStatus(metrics: { visits: number; healthy: boolean }): ProductStatus {
-  if (!metrics.healthy) return "error";
-  if (metrics.visits > 100) return "signal";
-  return "healthy";
+function getResponseStatus(ms: number | null): "healthy" | "warning" | "error" | undefined {
+  if (ms === null) return undefined;
+  if (ms < 800) return "healthy";
+  if (ms < 2000) return "warning";
+  return "error";
 }
 
 export default function DashboardPage() {
@@ -42,6 +41,8 @@ export default function DashboardPage() {
       description: product.description ?? undefined,
       category: product.category ?? undefined,
       stripeProductId: product.stripeProductId ?? undefined,
+      signal: product.signal,
+      growth: product.growth ?? null,
       latestMetrics: product.latestMetrics
         ? {
             visits: product.latestMetrics.visits,
@@ -49,7 +50,6 @@ export default function DashboardPage() {
             bounceRate: product.latestMetrics.bounceRate,
             healthy: product.latestMetrics.healthy,
             responseTime: product.latestMetrics.responseTime ?? undefined,
-            status: resolveStatus(product.latestMetrics),
           }
         : null,
       stripeMetrics: product.stripeMetrics ?? undefined,
@@ -71,7 +71,7 @@ export default function DashboardPage() {
     (p: ProductWithMetrics) => p.latestMetrics?.healthy
   ).length;
   const tractionSignals = productsWithMetrics.filter(
-    (p: ProductWithMetrics) => (p.latestMetrics?.visits ?? 0) > 100
+    (p: ProductWithMetrics) => p.signal === "traction"
   ).length;
   const responseTimes = productsWithMetrics
     .map((p: ProductWithMetrics) => p.latestMetrics?.responseTime ?? 0)
@@ -83,14 +83,7 @@ export default function DashboardPage() {
             responseTimes.length
         )
       : null;
-  const responseStatus =
-    averageResponseTime === null
-      ? undefined
-      : averageResponseTime < 800
-        ? "healthy"
-        : averageResponseTime < 2000
-          ? "warning"
-          : "error";
+  const responseStatus = getResponseStatus(averageResponseTime);
 
   const now = new Date();
   const weekOf = now.toLocaleDateString("en-US", {

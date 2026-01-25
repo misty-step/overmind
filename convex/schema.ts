@@ -106,6 +106,8 @@ export default defineSchema({
     theme: v.union(v.literal("dark"), v.literal("light"), v.literal("system")),
     // Thresholds
     tractionThreshold: v.number(), // visits/week to trigger "traction signal"
+    degradedResponseTime: v.optional(v.number()), // default 2000ms
+    degradedDeclinePercent: v.optional(v.number()), // default 30
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),

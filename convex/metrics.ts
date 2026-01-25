@@ -1,5 +1,12 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+
+type ProductWithMetrics = Doc<"products"> & {
+  latestMetrics: Doc<"metricsSnapshots"> | null;
+  stripeMetrics: { mrr: number; subscribers: number } | null;
+};
 
 export const getLatest = query({
   args: { productId: v.id("products") },
@@ -71,7 +78,7 @@ export const record = internalMutation({
 
 export const getProductsWithLatestMetrics = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<ProductWithMetrics[]> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
@@ -91,30 +98,9 @@ export const getProductsWithLatestMetrics = query({
         // Get Stripe revenue metrics if product has stripeProductId
         let stripeMetrics: { mrr: number; subscribers: number } | null = null;
         if (product.stripeProductId) {
-          const events = await ctx.db
-            .query("stripeEvents")
-            .withIndex("by_product", (q) =>
-              q.eq("stripeProductId", product.stripeProductId!)
-            )
-            .order("asc")
-            .collect();
-
-          if (events.length > 0) {
-            const activeSubscriptions = new Map<string, number>();
-            for (const event of events) {
-              if (!event.subscriptionId) continue;
-              if (event.eventType === "subscription_created") {
-                activeSubscriptions.set(event.subscriptionId, event.amountCents);
-              } else if (event.eventType === "subscription_deleted") {
-                activeSubscriptions.delete(event.subscriptionId);
-              }
-            }
-            let mrr = 0;
-            for (const amountCents of activeSubscriptions.values()) {
-              mrr += amountCents;
-            }
-            stripeMetrics = { mrr, subscribers: activeSubscriptions.size };
-          }
+          stripeMetrics = await ctx.runQuery(internal.stripe.getRevenueMetrics, {
+            stripeProductId: product.stripeProductId,
+          });
         }
 
         return {

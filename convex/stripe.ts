@@ -92,9 +92,9 @@ export const ingestEvent = internalMutation({
     const existing = await ctx.db
       .query("stripeEvents")
       .withIndex("by_event_id", (q) => q.eq("stripeEventId", args.stripeEventId))
-      .take(1);
+      .first();
 
-    if (existing.length > 0) return;
+    if (existing) return;
 
     await ctx.db.insert("stripeEvents", {
       ...args,
@@ -129,10 +129,10 @@ export const getRevenueMetrics = internalQuery({
       }
     }
 
-    let mrr = 0;
-    for (const amountCents of activeSubscriptions.values()) {
-      mrr += amountCents;
-    }
+    const mrr = Array.from(activeSubscriptions.values()).reduce(
+      (total, amountCents) => total + amountCents,
+      0
+    );
 
     return { mrr, subscribers: activeSubscriptions.size };
   },

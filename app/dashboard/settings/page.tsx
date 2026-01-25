@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const upsertSettings = useMutation(api.settings.upsert);
   const upsertConnection = useMutation(api.connections.upsert);
   const removeConnection = useMutation(api.connections.remove);
+  const resetOnboarding = useMutation(api.settings.resetOnboarding);
 
   const [emailNotifications, setEmailNotifications] = useState(
     defaultSettings.emailNotifications
@@ -45,6 +46,7 @@ export default function SettingsPage() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [isSavingDisplay, setIsSavingDisplay] = useState(false);
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
+  const [isResettingOnboarding, setIsResettingOnboarding] = useState(false);
 
   const vercelConnection = useMemo(
     () => connections?.find((connection) => connection.service === "vercel"),
@@ -128,6 +130,16 @@ export default function SettingsPage() {
 
   const settingsReady = settings !== undefined;
   const connectionsReady = connections !== undefined;
+
+  const handleResetOnboarding = async () => {
+    setIsResettingOnboarding(true);
+    try {
+      await resetOnboarding({});
+      window.location.reload();
+    } catch {
+      setIsResettingOnboarding(false);
+    }
+  };
 
   return (
     <div className="p-8 max-w-3xl space-y-8">
@@ -323,6 +335,26 @@ export default function SettingsPage() {
             {isSavingIntegrations ? "Saving..." : "Save integrations"}
           </button>
         </div>
+      </section>
+
+      <section className="card p-6 space-y-6">
+        <div>
+          <h2 className="text-lg font-display font-semibold text-text-light">
+            Onboarding
+          </h2>
+          <p className="text-sm text-text-dim">
+            Replay the setup wizard to reconfigure your products.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="btn-secondary px-4 py-2 text-sm font-medium text-text-light disabled:opacity-60"
+          onClick={handleResetOnboarding}
+          disabled={isResettingOnboarding}
+        >
+          {isResettingOnboarding ? "Resetting..." : "Replay onboarding"}
+        </button>
       </section>
     </div>
   );

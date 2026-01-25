@@ -8,6 +8,8 @@ const defaultSettings = {
   defaultView: "grid" as const,
   theme: "system" as const,
   tractionThreshold: 100,
+  degradedResponseTime: 2000,
+  degradedDeclinePercent: 30,
 };
 
 export const get = query({
@@ -34,6 +36,8 @@ export const upsert = mutation({
     defaultView: v.optional(v.union(v.literal("grid"), v.literal("table"))),
     theme: v.optional(v.union(v.literal("dark"), v.literal("light"), v.literal("system"))),
     tractionThreshold: v.optional(v.number()),
+    degradedResponseTime: v.optional(v.number()),
+    degradedDeclinePercent: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -57,6 +61,10 @@ export const upsert = mutation({
         defaultView: args.defaultView ?? defaultSettings.defaultView,
         theme: args.theme ?? defaultSettings.theme,
         tractionThreshold: args.tractionThreshold ?? defaultSettings.tractionThreshold,
+        degradedResponseTime:
+          args.degradedResponseTime ?? defaultSettings.degradedResponseTime,
+        degradedDeclinePercent:
+          args.degradedDeclinePercent ?? defaultSettings.degradedDeclinePercent,
         createdAt: now,
         updatedAt: now,
         ...(email !== undefined ? { email } : {}),
@@ -74,6 +82,8 @@ export const upsert = mutation({
       defaultView?: "grid" | "table";
       theme?: "dark" | "light" | "system";
       tractionThreshold?: number;
+      degradedResponseTime?: number;
+      degradedDeclinePercent?: number;
       updatedAt: number;
     } = { updatedAt: now };
 
@@ -89,6 +99,12 @@ export const upsert = mutation({
     if (args.theme !== undefined) updates.theme = args.theme;
     if (args.tractionThreshold !== undefined) {
       updates.tractionThreshold = args.tractionThreshold;
+    }
+    if (args.degradedResponseTime !== undefined) {
+      updates.degradedResponseTime = args.degradedResponseTime;
+    }
+    if (args.degradedDeclinePercent !== undefined) {
+      updates.degradedDeclinePercent = args.degradedDeclinePercent;
     }
 
     await ctx.db.patch(current._id, updates);

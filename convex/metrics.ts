@@ -1,5 +1,12 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
+
+type ProductWithMetrics = Doc<"products"> & {
+  latestMetrics: Doc<"metricsSnapshots"> | null;
+  stripeMetrics: { mrr: number; subscribers: number } | null;
+};
 
 export const getLatest = query({
   args: { productId: v.id("products") },
@@ -71,7 +78,7 @@ export const record = internalMutation({
 
 export const getProductsWithLatestMetrics = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<ProductWithMetrics[]> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
@@ -88,9 +95,18 @@ export const getProductsWithLatestMetrics = query({
           .order("desc")
           .take(1);
 
+        // Get Stripe revenue metrics if product has stripeProductId
+        let stripeMetrics: { mrr: number; subscribers: number } | null = null;
+        if (product.stripeProductId) {
+          stripeMetrics = await ctx.runQuery(internal.stripe.getRevenueMetrics, {
+            stripeProductId: product.stripeProductId,
+          });
+        }
+
         return {
           ...product,
           latestMetrics: snapshots[0] ?? null,
+          stripeMetrics,
         };
       })
     );

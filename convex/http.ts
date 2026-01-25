@@ -60,4 +60,113 @@ http.route({
   }),
 });
 
+// Stripe webhook endpoint
+http.route({
+  path: "/stripe/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const signature = request.headers.get("stripe-signature");
+      const rawBody = await request.text();
+
+      if (!signature) {
+        return new Response(
+          JSON.stringify({ error: "Missing stripe-signature header" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify signature (action in Node runtime)
+      const verification = await ctx.runAction(internal.actions.stripeWebhook.verifyAndParseWebhook, {
+        rawBody,
+        signature,
+      });
+
+      if (!verification.valid) {
+        const isConfigError = verification.error?.includes("not configured");
+        console.error("[stripe] Signature verification failed:", verification.error);
+        return new Response(
+          JSON.stringify({ error: verification.error }),
+          {
+            status: isConfigError ? 500 : 400,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const event = verification.event as any;
+      const dataObject = event?.data?.object;
+      const eventType = event?.type as string | undefined;
+
+      const eventTypeMap: Record<string, string> = {
+        "invoice.paid": "payment",
+        "customer.subscription.created": "subscription_created",
+        "customer.subscription.deleted": "subscription_deleted",
+      };
+
+      const mappedType = eventType ? eventTypeMap[eventType] : undefined;
+      if (!mappedType) {
+        return new Response(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const isInvoicePaid = eventType === "invoice.paid";
+      const stripeProductId = isInvoicePaid
+        ? dataObject?.lines?.data?.[0]?.price?.product
+        : dataObject?.items?.data?.[0]?.price?.product;
+
+      if (!stripeProductId) {
+        return new Response(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const subscriptionId =
+        dataObject?.subscription ??
+        (eventType?.startsWith("customer.subscription.") ? dataObject?.id : undefined);
+
+      const amountCents = isInvoicePaid
+        ? dataObject?.amount_paid ?? 0
+        : dataObject?.items?.data?.[0]?.price?.unit_amount ?? 0;
+
+      const customerId = dataObject?.customer;
+      const currency = dataObject?.currency ?? "usd";
+
+      if (!customerId) {
+        console.warn("[stripe] Missing customerId in event:", event.id);
+        return new Response(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      await ctx.runMutation(internal.stripe.ingestEvent, {
+        stripeProductId,
+        stripeEventId: event.id,
+        eventType: mappedType,
+        customerId,
+        subscriptionId,
+        amountCents,
+        currency,
+        timestamp: (event?.created ?? 0) * 1000,
+      });
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("[stripe] Error processing webhook:", error);
+      return new Response(
+        JSON.stringify({ ok: false, error: String(error) }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
 export default http;

@@ -107,6 +107,15 @@ const computeSignal = (
     if (daysSinceTraffic !== null && daysSinceTraffic >= 7 && !hasRevenue) {
       return { signal: "dead", growth };
     }
+  } else if (metrics && !hasRevenue) {
+    // No history in last 14 days but metrics exist from older snapshot
+    // Check if the last snapshot itself is stale (>7 days old)
+    const daysSinceSnapshot = Math.floor(
+      (Date.now() - metrics.snapshotAt) / DAY_MS
+    );
+    if (daysSinceSnapshot >= 7) {
+      return { signal: "dead", growth };
+    }
   }
 
   // Traction: visits > threshold OR growth > 50% OR has revenue

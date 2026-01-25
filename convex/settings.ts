@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
 
 const defaultSettings = {
   emailNotifications: true,
@@ -10,6 +10,43 @@ const defaultSettings = {
   tractionThreshold: 100,
   degradedResponseTime: 2000,
   degradedDeclinePercent: 30,
+};
+
+const getUserSettings = async (ctx: QueryCtx | MutationCtx, userId: string) => {
+  const settings = await ctx.db
+    .query("userSettings")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+
+  return settings[0] ?? null;
+};
+
+const ensureUserSettings = async (
+  ctx: MutationCtx,
+  userId: string,
+  email?: string
+) => {
+  const existing = await getUserSettings(ctx, userId);
+  if (existing) return existing;
+
+  const now = Date.now();
+  const settings = {
+    userId,
+    emailNotifications: defaultSettings.emailNotifications,
+    notifyOnTraction: defaultSettings.notifyOnTraction,
+    notifyOnDown: defaultSettings.notifyOnDown,
+    defaultView: defaultSettings.defaultView,
+    theme: defaultSettings.theme,
+    tractionThreshold: defaultSettings.tractionThreshold,
+    degradedResponseTime: defaultSettings.degradedResponseTime,
+    degradedDeclinePercent: defaultSettings.degradedDeclinePercent,
+    createdAt: now,
+    updatedAt: now,
+    ...(email !== undefined ? { email } : {}),
+  };
+
+  const id = await ctx.db.insert("userSettings", settings);
+  return { _id: id, ...settings };
 };
 
 export const get = query({
@@ -108,5 +145,74 @@ export const upsert = mutation({
     }
 
     await ctx.db.patch(current._id, updates);
+  },
+});
+
+export const getOnboardingStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const settings = await getUserSettings(ctx, identity.subject);
+
+    return {
+      completed: settings?.onboardingCompleted ?? false,
+      currentStep: settings?.onboardingStep ?? 0,
+    };
+  },
+});
+
+export const advanceOnboardingStep = mutation({
+  args: { step: v.number() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    if (args.step < 0 || args.step > 5) {
+      throw new Error("Invalid onboarding step");
+    }
+
+    const settings = await ensureUserSettings(ctx, identity.subject, identity.email);
+    const updates: {
+      onboardingStep: number;
+      onboardingCompleted?: boolean;
+      updatedAt: number;
+    } = {
+      onboardingStep: args.step,
+      updatedAt: Date.now(),
+    };
+
+    if (args.step === 5) updates.onboardingCompleted = true;
+
+    await ctx.db.patch(settings._id, updates);
+  },
+});
+
+export const skipOnboarding = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const settings = await ensureUserSettings(ctx, identity.subject, identity.email);
+    await ctx.db.patch(settings._id, {
+      onboardingCompleted: true,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const resetOnboarding = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const settings = await ensureUserSettings(ctx, identity.subject, identity.email);
+    await ctx.db.patch(settings._id, {
+      onboardingCompleted: false,
+      onboardingStep: 0,
+      updatedAt: Date.now(),
+    });
   },
 });

@@ -1,6 +1,7 @@
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { NavItem } from "./nav-item";
+import { OnboardingGate } from "../components/onboarding/onboarding-gate";
 
 export default function DashboardLayout({
   children,
@@ -131,7 +132,10 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 bg-bg-void">{children}</main>
+      <main className="flex-1 bg-bg-void">
+        <OnboardingGate />
+        {children}
+      </main>
     </div>
   );
 }

@@ -9,6 +9,7 @@
  */
 
 import type * as actions_health from "../actions/health.js";
+import type * as actions_healthCheck from "../actions/healthCheck.js";
 import type * as actions_import from "../actions/import.js";
 import type * as actions_refresh from "../actions/refresh.js";
 import type * as actions_refreshAll from "../actions/refreshAll.js";
@@ -16,6 +17,7 @@ import type * as actions_stripeWebhook from "../actions/stripeWebhook.js";
 import type * as actions_vercel from "../actions/vercel.js";
 import type * as analytics from "../analytics.js";
 import type * as connections from "../connections.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as metrics from "../metrics.js";
 import type * as products from "../products.js";
@@ -30,6 +32,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "actions/health": typeof actions_health;
+  "actions/healthCheck": typeof actions_healthCheck;
   "actions/import": typeof actions_import;
   "actions/refresh": typeof actions_refresh;
   "actions/refreshAll": typeof actions_refreshAll;
@@ -37,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   "actions/vercel": typeof actions_vercel;
   analytics: typeof analytics;
   connections: typeof connections;
+  crons: typeof crons;
   http: typeof http;
   metrics: typeof metrics;
   products: typeof products;

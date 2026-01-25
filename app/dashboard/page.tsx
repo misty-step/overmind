@@ -9,6 +9,17 @@ import { StatsCard } from "@/app/components/stats-card";
 
 type ProductStatus = "healthy" | "warning" | "error" | "signal";
 
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 function resolveStatus(metrics: { visits: number; healthy: boolean }): ProductStatus {
   if (!metrics.healthy) return "error";
   if (metrics.visits > 100) return "signal";
@@ -30,6 +41,7 @@ export default function DashboardPage() {
       domain: product.domain,
       description: product.description ?? undefined,
       category: product.category ?? undefined,
+      stripeProductId: product.stripeProductId ?? undefined,
       latestMetrics: product.latestMetrics
         ? {
             visits: product.latestMetrics.visits,
@@ -40,8 +52,15 @@ export default function DashboardPage() {
             status: resolveStatus(product.latestMetrics),
           }
         : null,
+      stripeMetrics: product.stripeMetrics ?? undefined,
     })
   );
+
+  // Find most recent health check across all products
+  const lastHealthCheck = (rawProducts ?? []).reduce((latest, product) => {
+    const checkTime = product.lastHealthCheck ?? 0;
+    return checkTime > latest ? checkTime : latest;
+  }, 0);
 
   // Calculate totals
   const totalVisits = productsWithMetrics.reduce(
@@ -126,7 +145,14 @@ export default function DashboardPage() {
           <h2 className="text-lg font-display font-semibold text-text-light">
             Overview
           </h2>
-          <p className="text-text-dim text-sm">Health checks and traffic</p>
+          <p className="text-text-dim text-sm">
+            Health checks and traffic
+            {lastHealthCheck > 0 && (
+              <span className="ml-2 text-text-mid">
+                · Last check {formatTimeAgo(lastHealthCheck)}
+              </span>
+            )}
+          </p>
         </div>
         <button
           type="button"

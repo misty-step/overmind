@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 
 export const list = query({
   args: {},
@@ -124,5 +124,37 @@ export const importProduct = internalMutation({
       updatedAt: now,
     });
     return true;
+  },
+});
+
+export const listAllEnabled = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("products")
+      .filter((q) => q.eq(q.field("enabled"), true))
+      .collect();
+  },
+});
+
+export const updateHealth = internalMutation({
+  args: {
+    productId: v.id("products"),
+    healthy: v.boolean(),
+    responseTime: v.optional(v.number()),
+    checkedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const product = await ctx.db.get(args.productId);
+    if (!product) return;
+
+    const failures = args.healthy ? 0 : (product.consecutiveFailures ?? 0) + 1;
+
+    await ctx.db.patch(args.productId, {
+      lastHealthy: args.healthy,
+      lastResponseTime: args.responseTime,
+      lastHealthCheck: args.checkedAt,
+      consecutiveFailures: failures,
+    });
   },
 });

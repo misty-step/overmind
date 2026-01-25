@@ -64,14 +64,19 @@ export const runHealthChecks = internalAction({
 
     await Promise.all(
       products.map(async (product) => {
-        const logPrefix = `[health:${product._id}]`;
-        const result = await checkHealth(product.domain, logPrefix);
-        await ctx.runMutation(internal.products.updateHealth, {
-          productId: product._id,
-          healthy: result.healthy,
-          responseTime: result.responseTime,
-          checkedAt: Date.now(),
-        });
+        try {
+          const logPrefix = `[health:${product._id}]`;
+          const result = await checkHealth(product.domain, logPrefix);
+          await ctx.runMutation(internal.products.updateHealth, {
+            productId: product._id,
+            healthy: result.healthy,
+            responseTime: result.responseTime,
+            statusCode: result.statusCode,
+            checkedAt: Date.now(),
+          });
+        } catch (error) {
+          console.error(`[health:${product._id}] Failed to process health check`, error);
+        }
       })
     );
 

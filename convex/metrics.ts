@@ -117,31 +117,40 @@ export const getProductsWithLatestMetrics = query({
 
         // Prefer real-time health from cron (lastHealthCheck) over snapshot data
         // This enables real-time updates via Convex reactivity
-        const latestMetrics: LatestMetrics | null = snapshot
-          ? {
-              visits: snapshot.visits,
-              devices: snapshot.devices,
-              bounceRate: snapshot.bounceRate,
-              // Use cron health if more recent than snapshot
-              healthy: product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt
-                ? product.lastHealthy ?? snapshot.healthy
-                : snapshot.healthy,
-              responseTime: product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt
-                ? product.lastResponseTime ?? snapshot.responseTime
-                : snapshot.responseTime,
-              statusCode: snapshot.statusCode,
-              snapshotAt: Math.max(snapshot.snapshotAt, product.lastHealthCheck ?? 0),
-            }
-          : product.lastHealthCheck
-            ? {
-                visits: 0,
-                devices: 0,
-                bounceRate: 0,
-                healthy: product.lastHealthy ?? false,
-                responseTime: product.lastResponseTime,
-                snapshotAt: product.lastHealthCheck,
-              }
-            : null;
+        const latestMetrics: LatestMetrics | null = (() => {
+          if (!snapshot) {
+            return product.lastHealthCheck
+              ? {
+                  visits: 0,
+                  devices: 0,
+                  bounceRate: 0,
+                  healthy: product.lastHealthy ?? false,
+                  responseTime: product.lastResponseTime,
+                  snapshotAt: product.lastHealthCheck,
+                }
+              : null;
+          }
+
+          const isCronHealthNewer =
+            product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt;
+
+          return {
+            visits: snapshot.visits,
+            devices: snapshot.devices,
+            bounceRate: snapshot.bounceRate,
+            healthy: isCronHealthNewer
+              ? product.lastHealthy ?? snapshot.healthy
+              : snapshot.healthy,
+            responseTime: isCronHealthNewer
+              ? product.lastResponseTime ?? snapshot.responseTime
+              : snapshot.responseTime,
+            statusCode: snapshot.statusCode,
+            snapshotAt: Math.max(
+              snapshot.snapshotAt,
+              product.lastHealthCheck ?? 0
+            ),
+          };
+        })();
 
         return {
           ...product,

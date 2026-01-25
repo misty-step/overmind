@@ -142,6 +142,7 @@ export const updateHealth = internalMutation({
     productId: v.id("products"),
     healthy: v.boolean(),
     responseTime: v.optional(v.number()),
+    statusCode: v.optional(v.number()),
     checkedAt: v.number(),
   },
   handler: async (ctx, args) => {
@@ -153,6 +154,7 @@ export const updateHealth = internalMutation({
     await ctx.db.patch(args.productId, {
       lastHealthy: args.healthy,
       lastResponseTime: args.responseTime,
+      lastStatusCode: args.statusCode,
       lastHealthCheck: args.checkedAt,
       consecutiveFailures: failures,
     });

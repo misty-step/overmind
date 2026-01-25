@@ -81,6 +81,7 @@ body {
 .status-warning { background-color: var(--caution-amber); }
 .status-error { background-color: var(--spore-red); }
 .status-signal { background-color: var(--hive-purple); }
+.status-awaiting { background-color: var(--bio-cyan); }
 
 /* Card - organic container */
 .card {

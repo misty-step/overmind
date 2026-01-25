@@ -5,14 +5,6 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ProductCard, type ProductWithMetrics } from "@/app/components/product-card";
 
-type ProductStatus = "healthy" | "warning" | "error" | "signal";
-
-function resolveStatus(metrics: { visits: number; healthy: boolean }): ProductStatus {
-  if (!metrics.healthy) return "error";
-  if (metrics.visits > 100) return "signal";
-  return "healthy";
-}
-
 export default function ProductsPage() {
   const products = useQuery(api.metrics.getProductsWithLatestMetrics);
   const isLoading = products === undefined;
@@ -24,6 +16,8 @@ export default function ProductsPage() {
       domain: product.domain,
       description: product.description ?? undefined,
       category: product.category ?? undefined,
+      signal: product.signal,
+      growth: product.growth ?? null,
       latestMetrics: product.latestMetrics
         ? {
             visits: product.latestMetrics.visits,
@@ -31,9 +25,9 @@ export default function ProductsPage() {
             bounceRate: product.latestMetrics.bounceRate,
             healthy: product.latestMetrics.healthy,
             responseTime: product.latestMetrics.responseTime ?? undefined,
-            status: resolveStatus(product.latestMetrics),
           }
         : null,
+      stripeMetrics: product.stripeMetrics ?? undefined,
     })
   );
 

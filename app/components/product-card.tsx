@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type ProductStatus = "healthy" | "warning" | "error" | "signal";
+type Signal = "traction" | "healthy" | "degraded" | "dead" | "awaiting-data";
 
 export interface ProductWithMetrics {
   _id: string;
@@ -9,11 +9,12 @@ export interface ProductWithMetrics {
   description?: string;
   category?: string;
   stripeProductId?: string;
+  signal: Signal;
+  growth: number | null;
   latestMetrics: {
     visits: number;
     devices: number;
     bounceRate: number;
-    status: ProductStatus;
     healthy: boolean;
     responseTime?: number;
   } | null;
@@ -35,8 +36,9 @@ function formatCurrency(cents: number): string {
 export function ProductCard({ product }: { product: ProductWithMetrics }) {
   const metrics = product.latestMetrics;
   const stripeMetrics = product.stripeMetrics;
-  const hasTraffic = (metrics?.visits ?? 0) > 0;
-  const hasTraction = (metrics?.visits ?? 0) > 100;
+  const hasTraction = product.signal === "traction";
+  const isDead = product.signal === "dead";
+  const isAwaiting = product.signal === "awaiting-data";
   const hasRevenue = (stripeMetrics?.mrr ?? 0) > 0;
 
   return (
@@ -44,7 +46,7 @@ export function ProductCard({ product }: { product: ProductWithMetrics }) {
       href={`/dashboard/products/${product._id}`}
       className={`card block p-5 transition-colors hover:border-border-glow hover:bg-bg-carapace ${
         hasTraction ? "border-border-glow bg-bg-carapace" : ""
-      }`}
+      } ${isDead ? "opacity-60" : ""}`}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -64,11 +66,13 @@ export function ProductCard({ product }: { product: ProductWithMetrics }) {
             {product.domain}
           </button>
         </div>
-        <HealthIndicator status={metrics?.status ?? null} />
+        <HealthIndicator signal={product.signal} growth={product.growth} />
       </div>
 
       {/* Metrics */}
-      {metrics || stripeMetrics ? (
+      {isDead ? (
+        <div className="mt-4 text-text-dim text-sm font-medium">No activity</div>
+      ) : !isAwaiting && (metrics || stripeMetrics) ? (
         <div className="grid grid-cols-3 gap-4 mt-4">
           {stripeMetrics ? (
             <>
@@ -146,34 +150,61 @@ export function ProductCard({ product }: { product: ProductWithMetrics }) {
   );
 }
 
-function HealthIndicator({ status }: { status: ProductStatus | null }) {
+function formatGrowth(growth: number | null): string | null {
+  if (growth === null || Number.isNaN(growth)) return null;
+  const rounded = Math.round(growth);
+  const normalized = Object.is(rounded, -0) ? 0 : rounded;
+  const sign = normalized > 0 ? "+" : "";
+  return `${sign}${normalized}%`;
+}
+
+function HealthIndicator({
+  signal,
+  growth,
+}: {
+  signal: Signal;
+  growth: number | null;
+}) {
   const statusClass =
-    status === "healthy"
-      ? "status-healthy"
-      : status === "warning"
-        ? "status-warning"
-        : status === "error"
-          ? "status-error"
-          : status === "signal"
-            ? "status-signal"
-            : "status-warning";
+    signal === "traction"
+      ? "status-signal"
+      : signal === "healthy"
+        ? "status-healthy"
+        : signal === "degraded"
+          ? "status-warning"
+          : signal === "dead"
+            ? "status-error"
+            : "status-awaiting";
   const title =
-    status === "healthy"
-      ? "Healthy"
-      : status === "warning"
-        ? "Degraded"
-        : status === "error"
-          ? "Down"
-          : status === "signal"
-            ? "Signal"
-            : "Unknown";
+    signal === "traction"
+      ? "🔥 Traction"
+      : signal === "healthy"
+        ? "✅ Healthy"
+        : signal === "degraded"
+          ? "⚠️ Degraded"
+          : signal === "dead"
+            ? "💀 Dead"
+            : "🕐 Awaiting";
+  const growthLabel =
+    signal === "traction" || signal === "degraded"
+      ? formatGrowth(growth)
+      : null;
+  const growthClass =
+    signal === "traction" ? "text-hive" : "text-caution";
   return (
     <div
-      className="inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 text-xs font-semibold text-text-light"
+      className={`inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 text-xs font-semibold text-text-light ${
+        signal === "awaiting-data" ? "motion-safe:animate-pulse" : ""
+      }`}
       title={title}
     >
       <span className={`status-dot ${statusClass}`} />
       <span>{title}</span>
+      {growthLabel ? (
+        <span className={`text-[11px] font-semibold tabular-nums ${growthClass}`}>
+          {growthLabel}
+        </span>
+      ) : null}
     </div>
   );
 }

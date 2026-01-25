@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-type Signal = "traction" | "healthy" | "degraded" | "dead" | "awaiting-data";
+import type { Signal } from "@/convex/metrics";
 
 export interface ProductWithMetrics {
   _id: string;

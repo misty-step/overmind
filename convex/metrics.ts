@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, query, type QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 
@@ -13,7 +13,12 @@ type LatestMetrics = {
   snapshotAt: number;
 };
 
-type Signal = "traction" | "healthy" | "degraded" | "dead" | "awaiting-data";
+export type Signal =
+  | "traction"
+  | "healthy"
+  | "degraded"
+  | "dead"
+  | "awaiting-data";
 
 const SIGNAL_PRIORITY: Record<Signal, number> = {
   traction: 0,
@@ -110,11 +115,91 @@ const computeSignal = (
   return { signal: "healthy", growth };
 };
 
+const mergeHealthMetrics = (
+  product: Doc<"products">,
+  snapshot: MetricsSnapshot | null
+): LatestMetrics | null => {
+  if (!snapshot) {
+    return product.lastHealthCheck
+      ? {
+          visits: 0,
+          devices: 0,
+          bounceRate: 0,
+          healthy: product.lastHealthy ?? false,
+          responseTime: product.lastResponseTime,
+          snapshotAt: product.lastHealthCheck,
+        }
+      : null;
+  }
+
+  const isCronHealthNewer =
+    product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt;
+
+  return {
+    visits: snapshot.visits,
+    devices: snapshot.devices,
+    bounceRate: snapshot.bounceRate,
+    healthy: isCronHealthNewer
+      ? product.lastHealthy ?? snapshot.healthy
+      : snapshot.healthy,
+    responseTime: isCronHealthNewer
+      ? product.lastResponseTime ?? snapshot.responseTime
+      : snapshot.responseTime,
+    statusCode: snapshot.statusCode,
+    snapshotAt: Math.max(snapshot.snapshotAt, product.lastHealthCheck ?? 0),
+  };
+};
+
 type ProductWithMetrics = Doc<"products"> & {
   latestMetrics: LatestMetrics | null;
   stripeMetrics: StripeMetrics | null;
   signal: Signal;
   growth: number | null;
+};
+
+const enrichProductWithMetrics = async (
+  ctx: QueryCtx,
+  product: Doc<"products">,
+  signalThresholds: SignalThresholds,
+  historySince: number
+): Promise<ProductWithMetrics> => {
+  const snapshots = await ctx.db
+    .query("metricsSnapshots")
+    .withIndex("by_product", (q) => q.eq("productId", product._id))
+    .order("desc")
+    .take(1);
+
+  const history = await ctx.db
+    .query("metricsSnapshots")
+    .withIndex("by_product", (q) =>
+      q.eq("productId", product._id).gte("snapshotAt", historySince)
+    )
+    .order("asc")
+    .collect();
+
+  let stripeMetrics: StripeMetrics | null = null;
+  if (product.stripeProductId) {
+    stripeMetrics = await ctx.runQuery(internal.stripe.getRevenueMetrics, {
+      stripeProductId: product.stripeProductId,
+    });
+  }
+
+  const snapshot = snapshots[0] ?? null;
+  const latestMetrics = mergeHealthMetrics(product, snapshot);
+  const { signal, growth } = computeSignal(
+    latestMetrics,
+    history,
+    signalThresholds,
+    stripeMetrics
+  );
+
+  return {
+    ...product,
+    latestMetrics,
+    stripeMetrics,
+    signal,
+    growth,
+  };
 };
 
 export const getLatest = query({
@@ -216,83 +301,9 @@ export const getProductsWithLatestMetrics = query({
     const historySince = Date.now() - 14 * DAY_MS;
 
     const productsWithMetrics = await Promise.all(
-      products.map(async (product) => {
-        const snapshots = await ctx.db
-          .query("metricsSnapshots")
-          .withIndex("by_product", (q) => q.eq("productId", product._id))
-          .order("desc")
-          .take(1);
-
-        const history = await ctx.db
-          .query("metricsSnapshots")
-          .withIndex("by_product", (q) =>
-            q.eq("productId", product._id).gte("snapshotAt", historySince)
-          )
-          .order("asc")
-          .collect();
-
-        // Get Stripe revenue metrics if product has stripeProductId
-        let stripeMetrics: StripeMetrics | null = null;
-        if (product.stripeProductId) {
-          stripeMetrics = await ctx.runQuery(internal.stripe.getRevenueMetrics, {
-            stripeProductId: product.stripeProductId,
-          });
-        }
-
-        const snapshot = snapshots[0] ?? null;
-
-        // Prefer real-time health from cron (lastHealthCheck) over snapshot data
-        // This enables real-time updates via Convex reactivity
-        const latestMetrics: LatestMetrics | null = (() => {
-          if (!snapshot) {
-            return product.lastHealthCheck
-              ? {
-                  visits: 0,
-                  devices: 0,
-                  bounceRate: 0,
-                  healthy: product.lastHealthy ?? false,
-                  responseTime: product.lastResponseTime,
-                  snapshotAt: product.lastHealthCheck,
-                }
-              : null;
-          }
-
-          const isCronHealthNewer =
-            product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt;
-
-          return {
-            visits: snapshot.visits,
-            devices: snapshot.devices,
-            bounceRate: snapshot.bounceRate,
-            healthy: isCronHealthNewer
-              ? product.lastHealthy ?? snapshot.healthy
-              : snapshot.healthy,
-            responseTime: isCronHealthNewer
-              ? product.lastResponseTime ?? snapshot.responseTime
-              : snapshot.responseTime,
-            statusCode: snapshot.statusCode,
-            snapshotAt: Math.max(
-              snapshot.snapshotAt,
-              product.lastHealthCheck ?? 0
-            ),
-          };
-        })();
-
-        const { signal, growth } = computeSignal(
-          latestMetrics,
-          history,
-          signalThresholds,
-          stripeMetrics
-        );
-
-        return {
-          ...product,
-          latestMetrics,
-          stripeMetrics,
-          signal,
-          growth,
-        };
-      })
+      products.map((product) =>
+        enrichProductWithMetrics(ctx, product, signalThresholds, historySince)
+      )
     );
 
     return productsWithMetrics.sort((a, b) => {

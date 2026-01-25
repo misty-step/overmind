@@ -46,6 +46,11 @@ export default defineSchema({
     enabled: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
+    lastHealthy: v.optional(v.boolean()),
+    lastResponseTime: v.optional(v.number()),
+    lastStatusCode: v.optional(v.number()),
+    lastHealthCheck: v.optional(v.number()),
+    consecutiveFailures: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_domain", ["domain"]),

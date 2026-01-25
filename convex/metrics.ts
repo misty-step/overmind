@@ -1,10 +1,20 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
+
+type LatestMetrics = {
+  visits: number;
+  devices: number;
+  bounceRate: number;
+  healthy: boolean;
+  responseTime?: number;
+  statusCode?: number;
+  snapshotAt: number;
+};
 
 type ProductWithMetrics = Doc<"products"> & {
-  latestMetrics: Doc<"metricsSnapshots"> | null;
+  latestMetrics: LatestMetrics | null;
   stripeMetrics: { mrr: number; subscribers: number } | null;
 };
 
@@ -103,9 +113,48 @@ export const getProductsWithLatestMetrics = query({
           });
         }
 
+        const snapshot = snapshots[0] ?? null;
+
+        // Prefer real-time health from cron (lastHealthCheck) over snapshot data
+        // This enables real-time updates via Convex reactivity
+        const latestMetrics: LatestMetrics | null = (() => {
+          if (!snapshot) {
+            return product.lastHealthCheck
+              ? {
+                  visits: 0,
+                  devices: 0,
+                  bounceRate: 0,
+                  healthy: product.lastHealthy ?? false,
+                  responseTime: product.lastResponseTime,
+                  snapshotAt: product.lastHealthCheck,
+                }
+              : null;
+          }
+
+          const isCronHealthNewer =
+            product.lastHealthCheck && product.lastHealthCheck > snapshot.snapshotAt;
+
+          return {
+            visits: snapshot.visits,
+            devices: snapshot.devices,
+            bounceRate: snapshot.bounceRate,
+            healthy: isCronHealthNewer
+              ? product.lastHealthy ?? snapshot.healthy
+              : snapshot.healthy,
+            responseTime: isCronHealthNewer
+              ? product.lastResponseTime ?? snapshot.responseTime
+              : snapshot.responseTime,
+            statusCode: snapshot.statusCode,
+            snapshotAt: Math.max(
+              snapshot.snapshotAt,
+              product.lastHealthCheck ?? 0
+            ),
+          };
+        })();
+
         return {
           ...product,
-          latestMetrics: snapshots[0] ?? null,
+          latestMetrics,
           stripeMetrics,
         };
       })

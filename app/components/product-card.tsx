@@ -8,6 +8,7 @@ export interface ProductWithMetrics {
   domain: string;
   description?: string;
   category?: string;
+  stripeProductId?: string;
   latestMetrics: {
     visits: number;
     devices: number;
@@ -16,12 +17,27 @@ export interface ProductWithMetrics {
     healthy: boolean;
     responseTime?: number;
   } | null;
+  stripeMetrics?: {
+    mrr: number; // in cents
+    subscribers: number;
+  } | null;
+}
+
+function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 }
 
 export function ProductCard({ product }: { product: ProductWithMetrics }) {
   const metrics = product.latestMetrics;
+  const stripeMetrics = product.stripeMetrics;
   const hasTraffic = (metrics?.visits ?? 0) > 0;
   const hasTraction = (metrics?.visits ?? 0) > 100;
+  const hasRevenue = (stripeMetrics?.mrr ?? 0) > 0;
 
   return (
     <Link
@@ -52,21 +68,42 @@ export function ProductCard({ product }: { product: ProductWithMetrics }) {
       </div>
 
       {/* Metrics */}
-      {metrics ? (
+      {metrics || stripeMetrics ? (
         <div className="grid grid-cols-3 gap-4 mt-4">
-          <MetricValue
-            label="Visits"
-            value={metrics.visits.toLocaleString()}
-            highlight={hasTraction}
-          />
-          <MetricValue
-            label="Devices"
-            value={metrics.devices.toLocaleString()}
-          />
-          <MetricValue
-            label="Bounce"
-            value={`${metrics.bounceRate}%`}
-          />
+          {stripeMetrics ? (
+            <>
+              <MetricValue
+                label="MRR"
+                value={formatCurrency(stripeMetrics.mrr)}
+                highlight={hasRevenue}
+              />
+              <MetricValue
+                label="Subscribers"
+                value={stripeMetrics.subscribers.toLocaleString()}
+              />
+            </>
+          ) : null}
+          {metrics ? (
+            <>
+              <MetricValue
+                label="Visits"
+                value={metrics.visits.toLocaleString()}
+                highlight={hasTraction}
+              />
+              {!stripeMetrics && (
+                <>
+                  <MetricValue
+                    label="Devices"
+                    value={metrics.devices.toLocaleString()}
+                  />
+                  <MetricValue
+                    label="Bounce"
+                    value={`${metrics.bounceRate}%`}
+                  />
+                </>
+              )}
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="mt-4">

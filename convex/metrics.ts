@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 
 export const getLatest = query({
   args: { productId: v.id("products") },
@@ -88,9 +88,39 @@ export const getProductsWithLatestMetrics = query({
           .order("desc")
           .take(1);
 
+        // Get Stripe revenue metrics if product has stripeProductId
+        let stripeMetrics: { mrr: number; subscribers: number } | null = null;
+        if (product.stripeProductId) {
+          const events = await ctx.db
+            .query("stripeEvents")
+            .withIndex("by_product", (q) =>
+              q.eq("stripeProductId", product.stripeProductId!)
+            )
+            .order("asc")
+            .collect();
+
+          if (events.length > 0) {
+            const activeSubscriptions = new Map<string, number>();
+            for (const event of events) {
+              if (!event.subscriptionId) continue;
+              if (event.eventType === "subscription_created") {
+                activeSubscriptions.set(event.subscriptionId, event.amountCents);
+              } else if (event.eventType === "subscription_deleted") {
+                activeSubscriptions.delete(event.subscriptionId);
+              }
+            }
+            let mrr = 0;
+            for (const amountCents of activeSubscriptions.values()) {
+              mrr += amountCents;
+            }
+            stripeMetrics = { mrr, subscribers: activeSubscriptions.size };
+          }
+        }
+
         return {
           ...product,
           latestMetrics: snapshots[0] ?? null,
+          stripeMetrics,
         };
       })
     );

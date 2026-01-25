@@ -81,27 +81,29 @@ export function ProductCard({ product }: { product: ProductWithMetrics }) {
                 label="Subscribers"
                 value={stripeMetrics.subscribers.toLocaleString()}
               />
+              {metrics && (
+                <MetricValue
+                  label="Visits"
+                  value={metrics.visits.toLocaleString()}
+                  highlight={hasTraction}
+                />
+              )}
             </>
-          ) : null}
-          {metrics ? (
+          ) : metrics ? (
             <>
               <MetricValue
                 label="Visits"
                 value={metrics.visits.toLocaleString()}
                 highlight={hasTraction}
               />
-              {!stripeMetrics && (
-                <>
-                  <MetricValue
-                    label="Devices"
-                    value={metrics.devices.toLocaleString()}
-                  />
-                  <MetricValue
-                    label="Bounce"
-                    value={`${metrics.bounceRate}%`}
-                  />
-                </>
-              )}
+              <MetricValue
+                label="Devices"
+                value={metrics.devices.toLocaleString()}
+              />
+              <MetricValue
+                label="Bounce"
+                value={`${metrics.bounceRate}%`}
+              />
             </>
           ) : null}
         </div>

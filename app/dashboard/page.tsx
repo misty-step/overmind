@@ -18,6 +18,13 @@ function formatTimeAgo(timestamp: number): string {
   return `${days}d ago`;
 }
 
+function getResponseStatus(ms: number | null): "healthy" | "warning" | "error" | undefined {
+  if (ms === null) return undefined;
+  if (ms < 800) return "healthy";
+  if (ms < 2000) return "warning";
+  return "error";
+}
+
 export default function DashboardPage() {
   const rawProducts = useQuery(api.metrics.getProductsWithLatestMetrics);
   const isLoading = rawProducts === undefined;
@@ -76,14 +83,7 @@ export default function DashboardPage() {
             responseTimes.length
         )
       : null;
-  const responseStatus =
-    averageResponseTime === null
-      ? undefined
-      : averageResponseTime < 800
-        ? "healthy"
-        : averageResponseTime < 2000
-          ? "warning"
-          : "error";
+  const responseStatus = getResponseStatus(averageResponseTime);
 
   const now = new Date();
   const weekOf = now.toLocaleDateString("en-US", {

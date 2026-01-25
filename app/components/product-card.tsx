@@ -158,6 +158,14 @@ function formatGrowth(growth: number | null): string | null {
   return `${sign}${normalized}%`;
 }
 
+const SIGNAL_DISPLAY: Record<Signal, { statusClass: string; label: string; showGrowth: boolean }> = {
+  traction: { statusClass: "status-signal", label: "🔥 Traction", showGrowth: true },
+  healthy: { statusClass: "status-healthy", label: "✅ Healthy", showGrowth: false },
+  degraded: { statusClass: "status-warning", label: "⚠️ Degraded", showGrowth: true },
+  dead: { statusClass: "status-error", label: "💀 Dead", showGrowth: false },
+  "awaiting-data": { statusClass: "status-awaiting", label: "🕐 Awaiting", showGrowth: false },
+};
+
 function HealthIndicator({
   signal,
   growth,
@@ -165,41 +173,18 @@ function HealthIndicator({
   signal: Signal;
   growth: number | null;
 }) {
-  const statusClass =
-    signal === "traction"
-      ? "status-signal"
-      : signal === "healthy"
-        ? "status-healthy"
-        : signal === "degraded"
-          ? "status-warning"
-          : signal === "dead"
-            ? "status-error"
-            : "status-awaiting";
-  const title =
-    signal === "traction"
-      ? "🔥 Traction"
-      : signal === "healthy"
-        ? "✅ Healthy"
-        : signal === "degraded"
-          ? "⚠️ Degraded"
-          : signal === "dead"
-            ? "💀 Dead"
-            : "🕐 Awaiting";
-  const growthLabel =
-    signal === "traction" || signal === "degraded"
-      ? formatGrowth(growth)
-      : null;
-  const growthClass =
-    signal === "traction" ? "text-hive" : "text-caution";
+  const { statusClass, label, showGrowth } = SIGNAL_DISPLAY[signal];
+  const growthLabel = showGrowth ? formatGrowth(growth) : null;
+  const growthClass = signal === "traction" ? "text-hive" : "text-caution";
   return (
     <div
       className={`inline-flex items-center gap-2 rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 text-xs font-semibold text-text-light ${
         signal === "awaiting-data" ? "motion-safe:animate-pulse" : ""
       }`}
-      title={title}
+      title={label}
     >
       <span className={`status-dot ${statusClass}`} />
-      <span>{title}</span>
+      <span>{label}</span>
       {growthLabel ? (
         <span className={`text-[11px] font-semibold tabular-nums ${growthClass}`}>
           {growthLabel}

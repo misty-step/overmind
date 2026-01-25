@@ -13,9 +13,108 @@ type LatestMetrics = {
   snapshotAt: number;
 };
 
+type Signal = "traction" | "healthy" | "degraded" | "dead" | "awaiting-data";
+
+const SIGNAL_PRIORITY: Record<Signal, number> = {
+  traction: 0,
+  degraded: 1,
+  healthy: 2,
+  "awaiting-data": 3,
+  dead: 4,
+};
+
+type SignalThresholds = {
+  tractionThreshold: number;
+  degradedResponseTime: number;
+  degradedDeclinePercent: number;
+};
+
+const DEFAULT_SIGNAL_THRESHOLDS: SignalThresholds = {
+  tractionThreshold: 100,
+  degradedResponseTime: 2000,
+  degradedDeclinePercent: 30,
+};
+
+type StripeMetrics = { mrr: number; subscribers: number };
+type MetricsSnapshot = Doc<"metricsSnapshots">;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const calculateGrowth = (history: MetricsSnapshot[]): number | null => {
+  if (history.length === 0) return null;
+  const latest = history[history.length - 1];
+  const targetAt = latest.snapshotAt - 7 * DAY_MS;
+
+  let previous: MetricsSnapshot | null = null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].snapshotAt <= targetAt) {
+      previous = history[i];
+      break;
+    }
+  }
+
+  if (!previous || previous.visits === 0) return null;
+  return ((latest.visits - previous.visits) / previous.visits) * 100;
+};
+
+const getDaysSinceTraffic = (history: MetricsSnapshot[]): number | null => {
+  if (history.length === 0) return null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].visits > 0) {
+      return Math.floor((Date.now() - history[i].snapshotAt) / DAY_MS);
+    }
+  }
+  return null;
+};
+
+const computeSignal = (
+  metrics: LatestMetrics | null,
+  history: MetricsSnapshot[],
+  settings: SignalThresholds,
+  stripeMetrics: StripeMetrics | null
+): { signal: Signal; growth: number | null } => {
+  const growth = calculateGrowth(history);
+  const daysSinceTraffic = getDaysSinceTraffic(history);
+  const hasRevenue =
+    (stripeMetrics?.mrr ?? 0) > 0 || (stripeMetrics?.subscribers ?? 0) > 0;
+
+  if (!metrics && history.length === 0) {
+    return { signal: "awaiting-data", growth };
+  }
+
+  if (history.length > 0) {
+    if (daysSinceTraffic === null && !hasRevenue) {
+      return { signal: "dead", growth };
+    }
+    if (daysSinceTraffic !== null && daysSinceTraffic >= 14 && !hasRevenue) {
+      return { signal: "dead", growth };
+    }
+  }
+
+  const visits = metrics?.visits ?? 0;
+  if (visits >= settings.tractionThreshold) {
+    return { signal: "traction", growth };
+  }
+
+  const responseTime = metrics?.responseTime;
+  const degradedFromHealth = metrics ? !metrics.healthy : false;
+  const degradedFromResponseTime =
+    responseTime !== undefined && responseTime > settings.degradedResponseTime;
+  const degradedFromDecline =
+    growth !== null && growth <= -Math.abs(settings.degradedDeclinePercent);
+
+  if (degradedFromHealth || degradedFromResponseTime || degradedFromDecline) {
+    return { signal: "degraded", growth };
+  }
+
+  return { signal: "healthy", growth };
+};
+
 type ProductWithMetrics = Doc<"products"> & {
   latestMetrics: LatestMetrics | null;
-  stripeMetrics: { mrr: number; subscribers: number } | null;
+  stripeMetrics: StripeMetrics | null;
+  signal: Signal;
+  growth: number | null;
 };
 
 export const getLatest = query({
@@ -92,10 +191,29 @@ export const getProductsWithLatestMetrics = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
+    const userSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .first();
+
+    const signalThresholds: SignalThresholds = {
+      tractionThreshold:
+        userSettings?.tractionThreshold ??
+        DEFAULT_SIGNAL_THRESHOLDS.tractionThreshold,
+      degradedResponseTime:
+        userSettings?.degradedResponseTime ??
+        DEFAULT_SIGNAL_THRESHOLDS.degradedResponseTime,
+      degradedDeclinePercent:
+        userSettings?.degradedDeclinePercent ??
+        DEFAULT_SIGNAL_THRESHOLDS.degradedDeclinePercent,
+    };
+
     const products = await ctx.db
       .query("products")
       .withIndex("by_user", (q) => q.eq("userId", identity.subject))
       .collect();
+
+    const historySince = Date.now() - 14 * DAY_MS;
 
     const productsWithMetrics = await Promise.all(
       products.map(async (product) => {
@@ -105,8 +223,16 @@ export const getProductsWithLatestMetrics = query({
           .order("desc")
           .take(1);
 
+        const history = await ctx.db
+          .query("metricsSnapshots")
+          .withIndex("by_product", (q) =>
+            q.eq("productId", product._id).gte("snapshotAt", historySince)
+          )
+          .order("asc")
+          .collect();
+
         // Get Stripe revenue metrics if product has stripeProductId
-        let stripeMetrics: { mrr: number; subscribers: number } | null = null;
+        let stripeMetrics: StripeMetrics | null = null;
         if (product.stripeProductId) {
           stripeMetrics = await ctx.runQuery(internal.stripe.getRevenueMetrics, {
             stripeProductId: product.stripeProductId,
@@ -152,14 +278,27 @@ export const getProductsWithLatestMetrics = query({
           };
         })();
 
+        const { signal, growth } = computeSignal(
+          latestMetrics,
+          history,
+          signalThresholds,
+          stripeMetrics
+        );
+
         return {
           ...product,
           latestMetrics,
           stripeMetrics,
+          signal,
+          growth,
         };
       })
     );
 
-    return productsWithMetrics;
+    return productsWithMetrics.sort((a, b) => {
+      const priorityDiff = SIGNAL_PRIORITY[a.signal] - SIGNAL_PRIORITY[b.signal];
+      if (priorityDiff !== 0) return priorityDiff;
+      return a.name.localeCompare(b.name);
+    });
   },
 });

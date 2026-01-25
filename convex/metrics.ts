@@ -83,24 +83,40 @@ const computeSignal = (
   const hasRevenue =
     (stripeMetrics?.mrr ?? 0) > 0 || (stripeMetrics?.subscribers ?? 0) > 0;
 
+  // Awaiting data: no data at all
   if (!metrics && history.length === 0) {
     return { signal: "awaiting-data", growth };
   }
 
+  // Awaiting data: less than 7 days of history
+  if (history.length > 0) {
+    const latestSnapshotAt = history[history.length - 1].snapshotAt;
+    const hasWeekOfHistory = history.some(
+      (s) => s.snapshotAt <= latestSnapshotAt - 7 * DAY_MS
+    );
+    if (!hasWeekOfHistory) {
+      return { signal: "awaiting-data", growth };
+    }
+  }
+
+  // Dead: no traffic for 7+ days (spec says 7, not 14)
   if (history.length > 0) {
     if (daysSinceTraffic === null && !hasRevenue) {
       return { signal: "dead", growth };
     }
-    if (daysSinceTraffic !== null && daysSinceTraffic >= 14 && !hasRevenue) {
+    if (daysSinceTraffic !== null && daysSinceTraffic >= 7 && !hasRevenue) {
       return { signal: "dead", growth };
     }
   }
 
+  // Traction: visits > threshold OR growth > 50% OR has revenue
   const visits = metrics?.visits ?? 0;
-  if (visits >= settings.tractionThreshold) {
+  const hasHighGrowth = growth !== null && growth > 50;
+  if (visits >= settings.tractionThreshold || hasHighGrowth || hasRevenue) {
     return { signal: "traction", growth };
   }
 
+  // Degraded: slow response, unhealthy, or declining
   const responseTime = metrics?.responseTime;
   const degradedFromHealth = metrics ? !metrics.healthy : false;
   const degradedFromResponseTime =

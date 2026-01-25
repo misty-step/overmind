@@ -76,8 +76,8 @@ http.route({
         );
       }
 
-      // Verify signature
-      const verification = await ctx.runAction(internal.stripe.verifyAndParseWebhook, {
+      // Verify signature (action in Node runtime)
+      const verification = await ctx.runAction(internal.actions.stripeWebhook.verifyAndParseWebhook, {
         rawBody,
         signature,
       });

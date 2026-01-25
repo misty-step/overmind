@@ -12,6 +12,7 @@ import type * as actions_health from "../actions/health.js";
 import type * as actions_import from "../actions/import.js";
 import type * as actions_refresh from "../actions/refresh.js";
 import type * as actions_refreshAll from "../actions/refreshAll.js";
+import type * as actions_stripeWebhook from "../actions/stripeWebhook.js";
 import type * as actions_vercel from "../actions/vercel.js";
 import type * as analytics from "../analytics.js";
 import type * as connections from "../connections.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   "actions/import": typeof actions_import;
   "actions/refresh": typeof actions_refresh;
   "actions/refreshAll": typeof actions_refreshAll;
+  "actions/stripeWebhook": typeof actions_stripeWebhook;
   "actions/vercel": typeof actions_vercel;
   analytics: typeof analytics;
   connections: typeof connections;

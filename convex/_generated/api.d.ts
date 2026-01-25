@@ -19,6 +19,7 @@ import type * as http from "../http.js";
 import type * as metrics from "../metrics.js";
 import type * as products from "../products.js";
 import type * as settings from "../settings.js";
+import type * as stripe from "../stripe.js";
 
 import type {
   ApiFromModules,
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   metrics: typeof metrics;
   products: typeof products;
   settings: typeof settings;
+  stripe: typeof stripe;
 }>;
 
 /**

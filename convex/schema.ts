@@ -19,6 +19,20 @@ export default defineSchema({
     .index("by_project_time", ["vercelProjectId", "timestamp"])
     .index("by_timestamp", ["timestamp"]),
 
+  // Raw Stripe events from webhooks
+  stripeEvents: defineTable({
+    stripeProductId: v.string(),
+    stripeEventId: v.string(),
+    eventType: v.string(),
+    customerId: v.string(),
+    subscriptionId: v.optional(v.string()),
+    amountCents: v.number(),
+    currency: v.string(),
+    timestamp: v.number(),
+    receivedAt: v.number(),
+  })
+    .index("by_product", ["stripeProductId", "timestamp"])
+    .index("by_event_id", ["stripeEventId"]),
 
   products: defineTable({
     name: v.string(),

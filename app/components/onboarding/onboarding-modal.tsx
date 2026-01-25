@@ -33,18 +33,21 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
 
   const handleNext = useCallback(async () => {
     const nextStep = Math.min(step + 1, TOTAL_STEPS - 1);
-    setStep(nextStep);
     try {
       await advanceOnboardingStep({ step: nextStep });
-    } catch {}
+      setStep(nextStep);
+    } catch (error) {
+      console.error("Failed to advance onboarding step:", error);
+    }
   }, [advanceOnboardingStep, step]);
 
   const handleComplete = useCallback(async () => {
     try {
       await advanceOnboardingStep({ step: TOTAL_STEPS });
-    } finally {
       setStep(0);
       onClose();
+    } catch (error) {
+      console.error("Failed to complete onboarding:", error);
     }
   }, [advanceOnboardingStep, onClose]);
 

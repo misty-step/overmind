@@ -136,7 +136,8 @@ export default function SettingsPage() {
     try {
       await resetOnboarding({});
       window.location.reload();
-    } catch {
+    } catch (error) {
+      console.error("Failed to reset onboarding:", error);
       setIsResettingOnboarding(false);
     }
   };

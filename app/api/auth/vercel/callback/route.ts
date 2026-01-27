@@ -102,13 +102,20 @@ export async function GET(request: NextRequest) {
   const client = new ConvexHttpClient(convexUrl);
   client.setAuth(convexToken);
 
-  await client.mutation(api.connections.upsert, {
-    service: "vercel",
-    accessToken: tokens.access_token,
-    ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
-    ...(tokens.expires_in ? { expiresAt: Date.now() + tokens.expires_in * 1000 } : {}),
-    ...(tokens.scope ? { scope: tokens.scope } : {}),
-  });
+  try {
+    await client.mutation(api.connections.upsert, {
+      service: "vercel",
+      accessToken: tokens.access_token,
+      ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+      ...(tokens.expires_in ? { expiresAt: Date.now() + tokens.expires_in * 1000 } : {}),
+      ...(tokens.scope ? { scope: tokens.scope } : {}),
+    });
+  } catch (error) {
+    console.error("Failed to store Vercel tokens:", error);
+    return NextResponse.redirect(
+      new URL("/dashboard?vercel=error&reason=storage_failed", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")
+    );
+  }
 
   return NextResponse.redirect(
     new URL("/dashboard?vercel=connected", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")

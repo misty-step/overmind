@@ -699,6 +699,8 @@ func formatNumber(value int64) string {
 
 // fetchMetrics returns a command that fetches all metrics.
 func (m *Model) fetchMetrics() tea.Cmd {
+	// Copy products slice to avoid data race with sortProducts in Update.
+	products := append([]domain.Product(nil), m.products...)
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -707,7 +709,7 @@ func (m *Model) fetchMetrics() tea.Cmd {
 		now := time.Now()
 		weekAgo := now.AddDate(0, 0, -7)
 
-		for _, p := range m.products {
+		for _, p := range products {
 			metric := &domain.Metrics{
 				ProductName: p.Name,
 				Timestamp:   now,

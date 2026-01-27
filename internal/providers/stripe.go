@@ -40,12 +40,18 @@ type stripeSubscriptionItems struct {
 }
 
 type stripeSubscriptionItem struct {
-	Price stripePrice `json:"price"`
+	Price    stripePrice `json:"price"`
+	Quantity *int64      `json:"quantity"`
 }
 
 type stripePrice struct {
-	Product    string `json:"product"`
-	UnitAmount *int64 `json:"unit_amount"`
+	Product    string                 `json:"product"`
+	UnitAmount *int64                 `json:"unit_amount"`
+	Recurring  *stripePriceRecurring  `json:"recurring"`
+}
+
+type stripePriceRecurring struct {
+	Interval string `json:"interval"` // day, week, month, year
 }
 
 // GetMRRForProduct returns MRR in cents and active subscriber count for a Stripe product.
@@ -103,7 +109,32 @@ func (c *StripeClient) GetMRRForProduct(ctx context.Context, productID string) (
 				if item.Price.UnitAmount == nil {
 					continue
 				}
-				mrr += *item.Price.UnitAmount
+
+				// Quantity defaults to 1 if not set
+				qty := int64(1)
+				if item.Quantity != nil {
+					qty = *item.Quantity
+				}
+
+				// Calculate line item amount
+				amount := *item.Price.UnitAmount * qty
+
+				// Normalize to monthly based on billing interval
+				if item.Price.Recurring != nil {
+					switch item.Price.Recurring.Interval {
+					case "year":
+						amount = amount / 12
+					case "quarter":
+						amount = amount / 3
+					case "week":
+						amount = amount * 52 / 12
+					case "day":
+						amount = amount * 365 / 12
+					// "month" is already monthly, no change needed
+					}
+				}
+
+				mrr += amount
 				matched = true
 			}
 			if matched {

@@ -68,5 +68,5 @@ export async function GET() {
     code_challenge_method: "S256",
   });
 
-  return NextResponse.redirect(`https://vercel.com/integrations/${clientId}/new?${params.toString()}`);
+  return NextResponse.redirect(`https://vercel.com/oauth/authorize?${params.toString()}`);
 }

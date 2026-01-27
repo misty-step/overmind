@@ -47,14 +47,21 @@ type PostHogCredentials struct {
 	Host      string `yaml:"host"`       // "https://us.i.posthog.com"
 }
 
-func DefaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".overmind", "config.yaml")
+func DefaultConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("config: determine home dir: %w", err)
+	}
+	return filepath.Join(home, ".overmind", "config.yaml"), nil
 }
 
 func Load(path string) (*Config, error) {
 	if path == "" {
-		path = DefaultConfigPath()
+		var err error
+		path, err = DefaultConfigPath()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	data, err := os.ReadFile(path)
@@ -125,5 +132,11 @@ func warnIfEmptyCredentials(cfg *Config) {
 	}
 	if cfg.Credentials.PostHog.APIKey == "" {
 		log.Printf("config: warning: posthog api_key is empty")
+	}
+	if cfg.Credentials.PostHog.ProjectID == "" {
+		log.Printf("config: warning: posthog project_id is empty")
+	}
+	if cfg.Credentials.PostHog.Host == "" {
+		log.Printf("config: warning: posthog host is empty")
 	}
 }

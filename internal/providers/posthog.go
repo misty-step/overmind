@@ -7,8 +7,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
+
+// escapeHogQLLike escapes special characters for ClickHouse LIKE clauses.
+// Order matters: backslash first, then the wildcards.
+func escapeHogQLLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
 
 type PostHogClient struct {
 	apiKey    string
@@ -41,18 +51,20 @@ func (c *PostHogClient) GetPageviews(ctx context.Context, hostFilter string, fro
 	}
 
 	// HogQL query for pageviews and unique visitors
+	// Escape hostFilter to prevent LIKE injection (wildcards: %, _, \)
+	safeHost := escapeHogQLLike(hostFilter)
 	query := map[string]interface{}{
 		"kind": "HogQLQuery",
 		"query": fmt.Sprintf(`
-			SELECT 
+			SELECT
 				count() as pageviews,
 				count(DISTINCT distinct_id) as visitors
-			FROM events 
-			WHERE event = '$pageview' 
+			FROM events
+			WHERE event = '$pageview'
 			AND properties.$host LIKE '%%%s%%'
 			AND timestamp >= toDateTime('%s')
 			AND timestamp <= toDateTime('%s')
-		`, hostFilter, from.UTC().Format("2006-01-02 15:04:05"), to.UTC().Format("2006-01-02 15:04:05")),
+		`, safeHost, from.UTC().Format("2006-01-02 15:04:05"), to.UTC().Format("2006-01-02 15:04:05")),
 	}
 
 	body, err := json.Marshal(map[string]interface{}{"query": query})

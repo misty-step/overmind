@@ -66,14 +66,17 @@ export const getRevenueMetrics = internalQuery({
 });
 
 // Cleanup mutations for removing test data
+// Uses batched deletion to avoid memory pressure and Convex's 16k document limit.
+// Callers should loop until hasMore is false.
 export const clearAllStripeEvents = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const events = await ctx.db.query("stripeEvents").collect();
+  args: { batchSize: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const batchSize = Math.min(args.batchSize ?? 500, 1000);
+    const events = await ctx.db.query("stripeEvents").take(batchSize);
     for (const event of events) {
       await ctx.db.delete(event._id);
     }
-    return { deleted: events.length };
+    return { deleted: events.length, hasMore: events.length === batchSize };
   },
 });
 

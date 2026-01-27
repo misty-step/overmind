@@ -202,7 +202,7 @@ export default function ProductDetailPage() {
             />
             <StatsCard
               label="Bounce Rate"
-              value={metrics?.bounceRate ? `${metrics.bounceRate}%` : "—"}
+              value={metrics?.bounceRate != null ? `${metrics.bounceRate}%` : "—"}
               subtext="Visitors who left quickly"
             />
             <StatsCard

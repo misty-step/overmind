@@ -64,3 +64,32 @@ export const getRevenueMetrics = internalQuery({
     return { mrr, subscribers: activeSubscriptions.size };
   },
 });
+
+// Cleanup mutations for removing test data
+export const clearAllStripeEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const events = await ctx.db.query("stripeEvents").collect();
+    for (const event of events) {
+      await ctx.db.delete(event._id);
+    }
+    return { deleted: events.length };
+  },
+});
+
+export const clearTestModeStripeProductIds = internalMutation({
+  args: {
+    testModeProductIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const products = await ctx.db.query("products").collect();
+    let cleared = 0;
+    for (const product of products) {
+      if (product.stripeProductId && args.testModeProductIds.includes(product.stripeProductId)) {
+        await ctx.db.patch(product._id, { stripeProductId: undefined });
+        cleared++;
+      }
+    }
+    return { cleared };
+  },
+});

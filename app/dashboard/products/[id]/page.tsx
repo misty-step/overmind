@@ -7,13 +7,24 @@ import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { StatsCard } from "@/app/components/stats-card";
+import type { Signal } from "@/convex/metrics";
 
-type ProductStatus = "healthy" | "warning" | "error" | "signal";
+// Map signal to status badge - consistent with dashboard card
+const SIGNAL_TO_STATUS: Record<Signal, "healthy" | "warning" | "error" | "signal"> = {
+  traction: "signal",
+  healthy: "healthy",
+  degraded: "warning",
+  dead: "error",
+  "awaiting-data": "healthy",
+};
 
-function resolveStatus(metrics: { visits: number; healthy: boolean }): ProductStatus {
-  if (!metrics.healthy) return "error";
-  if (metrics.visits > 100) return "signal";
-  return "healthy";
+function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 }
 
 export default function ProductDetailPage() {
@@ -21,8 +32,8 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const productId = params.id as Id<"products">;
 
-  const product = useQuery(api.products.get, { id: productId });
-  const metrics = useQuery(api.metrics.getLatest, { productId });
+  // Use enriched data (same as dashboard) for consistent signal/status
+  const productWithMetrics = useQuery(api.metrics.getProductWithMetrics, { productId });
   const history = useQuery(api.metrics.getHistory, { productId, days: 7 });
   const removeProduct = useMutation(api.products.remove);
   const refreshProduct = useAction(api.actions.refresh.refreshProduct);
@@ -31,7 +42,7 @@ export default function ProductDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  if (product === undefined) {
+  if (productWithMetrics === undefined) {
     return (
       <div className="p-8">
         <div className="text-text-dim">Loading...</div>
@@ -39,7 +50,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  if (product === null) {
+  if (productWithMetrics === null) {
     return (
       <div className="p-8">
         <div className="card p-12 text-center">
@@ -60,6 +71,12 @@ export default function ProductDetailPage() {
     );
   }
 
+  // Extract data from enriched product
+  const product = productWithMetrics;
+  const metrics = productWithMetrics.latestMetrics;
+  const stripeMetrics = productWithMetrics.stripeMetrics;
+  const signal = productWithMetrics.signal;
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
@@ -76,11 +93,12 @@ export default function ProductDetailPage() {
     try {
       await refreshProduct({ productId });
     } finally {
-      setIsRefreshing(false);
+        setIsRefreshing(false);
     }
   };
 
-  const status = metrics ? resolveStatus(metrics) : null;
+  // Map signal to status badge type
+  const status = SIGNAL_TO_STATUS[signal];
 
   return (
     <div className="p-8">
@@ -99,7 +117,7 @@ export default function ProductDetailPage() {
             <h1 className="text-2xl font-display font-semibold text-text-light">
               {product.name}
             </h1>
-            {status && <StatusBadge status={status} />}
+            <StatusBadge status={status} signal={signal} />
           </div>
           <a
             href={`https://${product.domain}`}
@@ -143,28 +161,58 @@ export default function ProductDetailPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <StatsCard
-          label="Visits"
-          value={metrics?.visits?.toLocaleString() ?? "—"}
-          subtext="Last 7 days"
-          status={metrics && metrics.visits > 100 ? "signal" : undefined}
-        />
-        <StatsCard
-          label="Devices"
-          value={metrics?.devices?.toLocaleString() ?? "—"}
-          subtext="Unique devices"
-        />
-        <StatsCard
-          label="Bounce Rate"
-          value={metrics?.bounceRate ? `${metrics.bounceRate}%` : "—"}
-          subtext="Visitors who left quickly"
-        />
-        <StatsCard
-          label="Health"
-          value={metrics?.healthy ? "Online" : metrics === null ? "—" : "Offline"}
-          status={metrics?.healthy ? "healthy" : metrics === null ? undefined : "error"}
-          subtext={metrics?.responseTime ? `${metrics.responseTime}ms` : undefined}
-        />
+        {stripeMetrics && (stripeMetrics.mrr > 0 || stripeMetrics.subscribers > 0) ? (
+          <>
+            <StatsCard
+              label="MRR"
+              value={formatCurrency(stripeMetrics.mrr)}
+              subtext="Monthly recurring revenue"
+              status={stripeMetrics.mrr > 0 ? "signal" : undefined}
+            />
+            <StatsCard
+              label="Subscribers"
+              value={stripeMetrics.subscribers.toLocaleString()}
+              subtext="Active subscribers"
+            />
+            <StatsCard
+              label="Visits"
+              value={metrics?.visits?.toLocaleString() ?? "—"}
+              subtext="Last 7 days"
+              status={signal === "traction" ? "signal" : undefined}
+            />
+            <StatsCard
+              label="Health"
+              value={metrics?.healthy ? "Online" : metrics === null ? "—" : "Offline"}
+              status={metrics?.healthy ? "healthy" : metrics === null ? undefined : "error"}
+              subtext={metrics?.responseTime ? `${metrics.responseTime}ms` : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <StatsCard
+              label="Visits"
+              value={metrics?.visits?.toLocaleString() ?? "—"}
+              subtext="Last 7 days"
+              status={signal === "traction" ? "signal" : undefined}
+            />
+            <StatsCard
+              label="Devices"
+              value={metrics?.devices?.toLocaleString() ?? "—"}
+              subtext="Unique devices"
+            />
+            <StatsCard
+              label="Bounce Rate"
+              value={metrics?.bounceRate ? `${metrics.bounceRate}%` : "—"}
+              subtext="Visitors who left quickly"
+            />
+            <StatsCard
+              label="Health"
+              value={metrics?.healthy ? "Online" : metrics === null ? "—" : "Offline"}
+              status={metrics?.healthy ? "healthy" : metrics === null ? undefined : "error"}
+              subtext={metrics?.responseTime ? `${metrics.responseTime}ms` : undefined}
+            />
+          </>
+        )}
       </div>
 
       {/* Product Details */}
@@ -252,17 +300,27 @@ export default function ProductDetailPage() {
   );
 }
 
-function StatusBadge({ status }: { status: ProductStatus }) {
+type ProductStatus = "healthy" | "warning" | "error" | "signal";
+
+const SIGNAL_LABELS: Record<Signal, string> = {
+  traction: "Traction",
+  healthy: "Healthy",
+  degraded: "Degraded",
+  dead: "Dead",
+  "awaiting-data": "Awaiting Data",
+};
+
+function StatusBadge({ status, signal }: { status: ProductStatus; signal: Signal }) {
   const config = {
-    healthy: { label: "Healthy", className: "bg-spawn/20 text-spawn border-spawn/30" },
-    warning: { label: "Warning", className: "bg-caution/20 text-caution border-caution/30" },
-    error: { label: "Down", className: "bg-spore/20 text-spore border-spore/30" },
-    signal: { label: "Traction", className: "bg-hive/20 text-hive border-hive/30" },
+    healthy: { className: "bg-spawn/20 text-spawn border-spawn/30" },
+    warning: { className: "bg-caution/20 text-caution border-caution/30" },
+    error: { className: "bg-spore/20 text-spore border-spore/30" },
+    signal: { className: "bg-hive/20 text-hive border-hive/30" },
   }[status];
 
   return (
     <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${config.className}`}>
-      {config.label}
+      {SIGNAL_LABELS[signal]}
     </span>
   );
 }

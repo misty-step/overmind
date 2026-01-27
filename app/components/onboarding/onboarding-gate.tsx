@@ -20,5 +20,11 @@ export function OnboardingGate() {
   // Derive open state: show if not completed AND not dismissed this session
   const isOpen = !onboardingStatus.completed && !dismissed;
 
-  return <OnboardingModal isOpen={isOpen} onClose={handleClose} />;
+  return (
+    <OnboardingModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      initialStep={onboardingStatus.currentStep}
+    />
+  );
 }

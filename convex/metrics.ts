@@ -83,21 +83,14 @@ const computeSignal = (
   const hasRevenue =
     (stripeMetrics?.mrr ?? 0) > 0 || (stripeMetrics?.subscribers ?? 0) > 0;
 
-  // Awaiting data: no data at all
+  // Awaiting data: no data at all (no metrics AND no history)
   if (!metrics && history.length === 0) {
     return { signal: "awaiting-data", growth };
   }
 
-  // Awaiting data: less than 7 days of history
-  if (history.length > 0) {
-    const latestSnapshotAt = history[history.length - 1].snapshotAt;
-    const hasWeekOfHistory = history.some(
-      (s) => s.snapshotAt <= latestSnapshotAt - 7 * DAY_MS
-    );
-    if (!hasWeekOfHistory) {
-      return { signal: "awaiting-data", growth };
-    }
-  }
+  // NOTE: We no longer require 7 days of history before showing a signal.
+  // Growth calculations still need 7-day baseline, but signal can show immediately.
+  // This improves UX for users who just connected Vercel.
 
   // Dead: no traffic for 7+ days (spec says 7, not 14)
   if (history.length > 0) {
@@ -244,6 +237,41 @@ export const getLatest = query({
       .take(1);
 
     return snapshots[0] ?? null;
+  },
+});
+
+/**
+ * Get a single product with enriched metrics (same data shape as getProductsWithLatestMetrics).
+ * Use this on detail pages to ensure consistent signal/status with the dashboard.
+ */
+export const getProductWithMetrics = query({
+  args: { productId: v.id("products") },
+  handler: async (ctx, args): Promise<ProductWithMetrics | null> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const product = await ctx.db.get(args.productId);
+    if (!product || product.userId !== identity.subject) return null;
+
+    const userSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .first();
+
+    const signalThresholds: SignalThresholds = {
+      tractionThreshold:
+        userSettings?.tractionThreshold ??
+        DEFAULT_SIGNAL_THRESHOLDS.tractionThreshold,
+      degradedResponseTime:
+        userSettings?.degradedResponseTime ??
+        DEFAULT_SIGNAL_THRESHOLDS.degradedResponseTime,
+      degradedDeclinePercent:
+        userSettings?.degradedDeclinePercent ??
+        DEFAULT_SIGNAL_THRESHOLDS.degradedDeclinePercent,
+    };
+
+    const historySince = Date.now() - 14 * DAY_MS;
+    return enrichProductWithMetrics(ctx, product, signalThresholds, historySince);
   },
 });
 

@@ -58,7 +58,8 @@ export const fetchAnalytics = action({
     if (!vercel?.accessToken) return null;
 
     const now = Date.now();
-    const from = now - 7 * DAY_MS;
+    // Try 30-day lookback for more historical data; Vercel API may limit this
+    const from = now - 30 * DAY_MS;
     const url = new URL("https://vercel.com/api/v1/web-analytics/stats");
     url.searchParams.set("projectId", product.vercelProjectId);
     url.searchParams.set("from", String(from));

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation } from "convex/react";
 
 import { api } from "@/convex/_generated/api";
@@ -15,12 +16,14 @@ const TOTAL_STEPS = 5;
 type OnboardingModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  initialStep?: number;
 };
 
-export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
+export function OnboardingModal({ isOpen, onClose, initialStep = 0 }: OnboardingModalProps) {
+  const searchParams = useSearchParams();
   const skipOnboarding = useMutation(api.settings.skipOnboarding);
   const advanceOnboardingStep = useMutation(api.settings.advanceOnboardingStep);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(initialStep);
 
   const handleSkip = useCallback(async () => {
     try {
@@ -61,6 +64,23 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSkip, isOpen]);
+
+  // Sync local step with database when initialStep changes (e.g., after data loads)
+  useEffect(() => {
+    if (initialStep > step) {
+      setStep(initialStep);
+    }
+  }, [initialStep, step]);
+
+  // Auto-advance when returning from OAuth with success
+  useEffect(() => {
+    if (!isOpen) return;
+    const vercelConnected = searchParams.get("vercel") === "connected";
+    // If on the Vercel step and OAuth just succeeded, advance to next step
+    if (vercelConnected && step === 2) {
+      void handleNext();
+    }
+  }, [isOpen, searchParams, step, handleNext]);
 
   let stepContent = <WelcomeStep onNext={handleNext} />;
   if (step === 1) stepContent = <AddProductStep onNext={handleNext} />;

@@ -6,8 +6,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +17,7 @@ import (
 	"github.com/phaedrus/overmind/internal/domain"
 	"github.com/phaedrus/overmind/internal/providers"
 	"github.com/phaedrus/overmind/internal/store"
+	"golang.org/x/sync/errgroup"
 )
 
 type Model struct {
@@ -48,11 +51,13 @@ const (
 )
 
 const columnGap = 2
+const trendDays = 7
 
 type columnWidths struct {
 	name    int
 	domain  int
 	visits  int
+	trend   int
 	mrr     int
 	subs    int
 	health  int
@@ -60,10 +65,10 @@ type columnWidths struct {
 }
 
 func (c columnWidths) totalWidth() int {
-	if c.name == 0 && c.domain == 0 && c.visits == 0 && c.mrr == 0 && c.subs == 0 && c.health == 0 && c.latency == 0 {
+	if c.name == 0 && c.domain == 0 && c.visits == 0 && c.trend == 0 && c.mrr == 0 && c.subs == 0 && c.health == 0 && c.latency == 0 {
 		return 0
 	}
-	return c.name + c.domain + c.visits + c.mrr + c.subs + c.health + c.latency + columnGap*6
+	return c.name + c.domain + c.visits + c.trend + c.mrr + c.subs + c.health + c.latency + columnGap*7
 }
 
 // Messages
@@ -211,6 +216,7 @@ func (m *Model) headerView() string {
 	name := "NAME"
 	domain := "DOMAIN"
 	visits := "VISITS"
+	trend := "TREND"
 	mrr := "MRR"
 	subs := "SUBS"
 	health := "HEALTH"
@@ -231,6 +237,7 @@ func (m *Model) headerView() string {
 		header.name.Render(truncate(name, widths.name)),
 		header.domain.Render(truncate(domain, widths.domain)),
 		header.visits.Render(truncate(visits, widths.visits)),
+		header.trend.Render(truncate(trend, widths.trend)),
 		header.mrr.Render(truncate(mrr, widths.mrr)),
 		header.subs.Render(truncate(subs, widths.subs)),
 		header.health.Render(truncate(health, widths.health)),
@@ -269,6 +276,7 @@ type columnStyleSet struct {
 	name    lipgloss.Style
 	domain  lipgloss.Style
 	visits  lipgloss.Style
+	trend   lipgloss.Style
 	mrr     lipgloss.Style
 	subs    lipgloss.Style
 	health  lipgloss.Style
@@ -280,6 +288,7 @@ func columnStyles(widths columnWidths, base lipgloss.Style) columnStyleSet {
 		name:    base.Copy().Width(max(0, widths.name)),
 		domain:  base.Copy().Width(max(0, widths.domain)),
 		visits:  base.Copy().Width(max(0, widths.visits)).Align(lipgloss.Right),
+		trend:   base.Copy().Width(max(0, widths.trend)).Align(lipgloss.Center),
 		mrr:     base.Copy().Width(max(0, widths.mrr)).Align(lipgloss.Right),
 		subs:    base.Copy().Width(max(0, widths.subs)).Align(lipgloss.Right),
 		health:  base.Copy().Width(max(0, widths.health)).Align(lipgloss.Center),
@@ -322,6 +331,7 @@ func (m *Model) renderRow(product domain.Product, metrics *domain.Metrics, selec
 	domainCell := styles.domain.Render(truncate(product.Domain, widths.domain))
 
 	visits := "0"
+	trend := ""
 	mrr := "$0.00"
 	subs := "0"
 	health := SubtitleStyle.Render("●")
@@ -329,6 +339,7 @@ func (m *Model) renderRow(product domain.Product, metrics *domain.Metrics, selec
 
 	if metrics != nil {
 		visits = formatNumber(metrics.Visits)
+		trend = renderSparkline(metrics.VisitsHistory, widths.trend, rowStyle)
 		mrr = formatCurrency(metrics.MRR)
 		subs = formatNumber(metrics.Subscribers)
 		health = healthDot(metrics.HealthStatus)
@@ -341,6 +352,7 @@ func (m *Model) renderRow(product domain.Product, metrics *domain.Metrics, selec
 		nameCell,
 		domainCell,
 		styles.visits.Render(visits),
+		styles.trend.Render(trend),
 		styles.mrr.Render(mrr),
 		styles.subs.Render(subs),
 		styles.health.Render(health),
@@ -542,6 +554,7 @@ func (m *Model) calcColumnWidths() columnWidths {
 
 	fixed := columnWidths{
 		visits:  7,
+		trend:   7,
 		mrr:     8,
 		subs:    5,
 		health:  6,
@@ -553,7 +566,7 @@ func (m *Model) calcColumnWidths() columnWidths {
 	minNameFloor := 6
 	minDomainFloor := 8
 
-	available := width - fixed.visits - fixed.mrr - fixed.subs - fixed.health - fixed.latency - columnGap*6
+	available := width - fixed.visits - fixed.trend - fixed.mrr - fixed.subs - fixed.health - fixed.latency - columnGap*7
 	if available <= 0 {
 		return fixed
 	}
@@ -580,6 +593,7 @@ func (m *Model) calcColumnWidths() columnWidths {
 		name:    name,
 		domain:  domain,
 		visits:  fixed.visits,
+		trend:   fixed.trend,
 		mrr:     fixed.mrr,
 		subs:    fixed.subs,
 		health:  fixed.health,
@@ -697,6 +711,52 @@ func formatNumber(value int64) string {
 	return b.String()
 }
 
+func buildVisitsHistory(metrics []*domain.Metrics, now time.Time, days int) []int64 {
+	if days <= 0 {
+		return nil
+	}
+
+	loc := now.Location()
+	dayVisits := make(map[string]int64, days)
+	for _, metric := range metrics {
+		if metric == nil {
+			continue
+		}
+		ts := metric.Timestamp.In(loc)
+		day := time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, loc)
+		dayVisits[day.Format("2006-01-02")] = metric.Visits
+	}
+
+	history := make([]int64, 0, days)
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -(days - 1))
+	for i := 0; i < days; i++ {
+		day := start.AddDate(0, 0, i)
+		history = append(history, dayVisits[day.Format("2006-01-02")])
+	}
+	return history
+}
+
+func renderSparkline(values []int64, width int, style lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	if len(values) == 0 {
+		return strings.Repeat(" ", width)
+	}
+
+	data := make([]float64, 0, len(values))
+	for _, v := range values {
+		if v < 0 {
+			v = 0
+		}
+		data = append(data, float64(v))
+	}
+
+	line := sparkline.New(width, 1, sparkline.WithStyle(style), sparkline.WithData(data))
+	line.DrawBraille()
+	return line.View()
+}
+
 // fetchMetrics returns a command that fetches all metrics.
 func (m *Model) fetchMetrics() tea.Cmd {
 	// Copy products slice to avoid data race with sortProducts in Update.
@@ -705,52 +765,81 @@ func (m *Model) fetchMetrics() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		metrics := make(map[string]*domain.Metrics)
 		now := time.Now()
 		weekAgo := now.AddDate(0, 0, -7)
+		trendStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(trendDays - 1))
+		var metrics sync.Map
+
+		group, ctx := errgroup.WithContext(ctx)
 
 		for _, p := range products {
-			metric := &domain.Metrics{
-				ProductName: p.Name,
-				Timestamp:   now,
-			}
-
-			// Fetch PostHog analytics.
-			if p.PostHogHost != "" && m.providers.PostHog != nil {
-				analytics, err := m.providers.PostHog.GetPageviews(ctx, p.PostHogHost, weekAgo, now)
-				if err == nil {
-					metric.Visits = analytics.Pageviews
-					metric.Uniques = analytics.Visitors
-					// PostHog bounce rate not available in this query.
+			p := p
+			group.Go(func() error {
+				metric := &domain.Metrics{
+					ProductName: p.Name,
+					Timestamp:   now,
 				}
-			}
 
-			// Fetch Stripe MRR.
-			if p.StripeID != "" && m.providers.Stripe != nil {
-				mrr, subs, err := m.providers.Stripe.GetMRRForProduct(ctx, p.StripeID)
-				if err == nil {
-					metric.MRR = mrr
-					metric.Subscribers = subs
+				// Fetch PostHog analytics.
+				if p.PostHogHost != "" && m.providers.PostHog != nil {
+					analytics, err := m.providers.PostHog.GetPageviews(ctx, p.PostHogHost, weekAgo, now)
+					if err == nil {
+						metric.Visits = analytics.Pageviews
+						metric.Uniques = analytics.Visitors
+						// PostHog bounce rate not available in this query.
+					}
 				}
-			}
 
-			// Health check.
-			if p.Domain != "" {
-				health, err := providers.CheckHealth(ctx, p.Domain)
-				if err == nil {
-					metric.HealthStatus = health.Status
-					metric.ResponseTime = health.ResponseTime
+				// Fetch Stripe MRR.
+				if p.StripeID != "" && m.providers.Stripe != nil {
+					mrr, subs, err := m.providers.Stripe.GetMRRForProduct(ctx, p.StripeID)
+					if err == nil {
+						metric.MRR = mrr
+						metric.Subscribers = subs
+					}
 				}
-			}
 
-			// Cache to store.
-			if m.store != nil {
-				_ = m.store.SaveMetrics(ctx, metric)
-			}
+				// Health check.
+				if p.Domain != "" {
+					health, err := providers.CheckHealth(ctx, p.Domain)
+					if err == nil {
+						metric.HealthStatus = health.Status
+						metric.ResponseTime = health.ResponseTime
+					}
+				}
 
-			metrics[p.Name] = metric
+				// Cache to store.
+				if m.store != nil {
+					_ = m.store.SaveMetrics(ctx, metric)
+					history, err := m.store.GetMetricsRange(ctx, p.Name, trendStart, now)
+					if err == nil {
+						metric.VisitsHistory = buildVisitsHistory(history, now, trendDays)
+					}
+				}
+
+				metrics.Store(p.Name, metric)
+				return nil
+			})
 		}
 
-		return metricsLoadedMsg{metrics: metrics}
+		if err := group.Wait(); err != nil {
+			return metricsErrorMsg{err: err}
+		}
+
+		collected := make(map[string]*domain.Metrics, len(products))
+		metrics.Range(func(key, value any) bool {
+			name, ok := key.(string)
+			if !ok {
+				return true
+			}
+			metric, ok := value.(*domain.Metrics)
+			if !ok {
+				return true
+			}
+			collected[name] = metric
+			return true
+		})
+
+		return metricsLoadedMsg{metrics: collected}
 	}
 }

@@ -17,6 +17,8 @@ type Metrics struct {
 	Visits     int64
 	Uniques    int64
 	BounceRate float64
+	// Trend data (store)
+	VisitsHistory []int64
 
 	// Revenue (Stripe)
 	MRR         int64 // cents

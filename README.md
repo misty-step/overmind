@@ -1,96 +1,71 @@
 # Overmind
 
-**Portfolio command center for indie hackers.**
+Portfolio command center CLI for indie hackers. Track traffic, revenue, and health across all your products.
 
-Track traffic, health, and traction signals across all your products. One dashboard. Real insights.
+## Features
 
-## The Problem
-
-You have 10+ products. Each has its own Vercel dashboard, Stripe dashboard, Sentry project. You're drowning in tabs. You miss the signal that Line Jam is suddenly getting traction because you're busy checking Chrondle's error logs.
-
-## The Solution
-
-Overmind aggregates everything into one war room:
-
-- **Traffic** — Visits, devices, bounce rate (via Vercel Drains)
-- **Health** — HTTP status, response time
-- **Traction Signals** — Automatic alerts when something's working
-- *Coming soon:* Revenue (Stripe), Errors (Sentry)
-
-## Stack
-
-- **Frontend:** Next.js 15 (App Router)
-- **Backend:** Convex
-- **Auth:** Clerk
-- **Analytics:** Vercel Drains (real-time event streaming)
-- **Styling:** Tailwind CSS 4
+- **Traffic** - Pageviews and visitors (PostHog)
+- **Revenue** - MRR and subscribers (Stripe)
+- **Health** - HTTP response status and latency
+- **Trends** - 7-day sparklines showing visit history
+- **Traction Signals** - Highlights products getting >100 visits/week
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-pnpm install
+# Build
+go build ./...
 
-# Set up environment
-cp .env.local.example .env.local
-# Fill in Clerk + Convex keys
-
-# Run development
-pnpm dev
+# Run
+./overmind
 ```
 
-## Environment Variables
+## Configuration
+
+Copy the example config and customize:
 
 ```bash
-# Convex
-NEXT_PUBLIC_CONVEX_URL=
-CONVEX_DEPLOYMENT=
-
-# Clerk
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
+mkdir -p ~/.overmind
+cp config/config.example.yaml ~/.overmind/config.yaml
+# Edit with your Stripe/PostHog credentials
 ```
 
-## Setting Up Vercel Drains
+See [config/config.example.yaml](config/config.example.yaml) for all options.
 
-Overmind receives analytics via Vercel Drains (Pro plan required).
+Environment variables can be referenced in the config via `${VAR_NAME}` syntax.
 
-```bash
-# Set up drain for all your Vercel projects
-./scripts/create-unified-drain.sh
-```
+## Keybindings
 
-This creates a single drain that streams all pageview events to Overmind in real-time.
+| Key | Action |
+|-----|--------|
+| `r` | Refresh all metrics |
+| `s` | Cycle sort (MRR → Visits → Name → Health) |
+| `j/k` | Navigate up/down |
+| `q` | Quit |
 
 ## Architecture
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design.
+
 ```
-app/
-  dashboard/           # Main dashboard (protected)
-    products/          # Product management
-    settings/          # User settings
-  components/          # Shared components
-convex/
-  schema.ts            # Data model
-  products.ts          # Product CRUD
-  metrics.ts           # Metrics queries
-  analytics.ts         # Drain event aggregation
-  http.ts              # HTTP endpoint for drains
-scripts/
-  create-unified-drain.sh   # One-click drain setup
+overmind/
+├── main.go              # Entry point
+├── internal/
+│   ├── config/          # YAML config with env expansion
+│   ├── domain/          # Core types (Product, Metrics)
+│   ├── providers/       # PostHog, Stripe, health + MetricsFetcher
+│   ├── store/           # SQLite cache for trends
+│   └── tui/             # Bubble Tea terminal UI
+└── config/              # Example configuration
 ```
 
-## Roadmap
+## Install via Homebrew (coming soon)
 
-- [x] Product registry + import
-- [x] Health checks
-- [x] Vercel Drains integration
-- [ ] Stripe integration (MRR, subscribers)
-- [ ] Sentry integration (error counts)
-- [ ] Vercel OAuth (auto-discover projects)
-- [ ] Traction signal alerts
-- [ ] Historical trends + sparklines
+```bash
+brew tap phaedrus/tap
+brew install overmind
+```
 
 ## License
 
-Private. Not for distribution.
+MIT

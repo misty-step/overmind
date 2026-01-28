@@ -127,16 +127,39 @@ func validateConfig(cfg *Config) error {
 }
 
 func warnIfEmptyCredentials(cfg *Config) {
-	if cfg.Credentials.Stripe.SecretKey == "" {
+	// Only warn about Stripe credentials if at least one product uses Stripe
+	if hasStripeProduct(cfg) && cfg.Credentials.Stripe.SecretKey == "" {
 		log.Printf("config: warning: stripe secret_key is empty")
 	}
-	if cfg.Credentials.PostHog.APIKey == "" {
-		log.Printf("config: warning: posthog api_key is empty")
+
+	// Only warn about PostHog credentials if at least one product uses PostHog
+	if hasPostHogProduct(cfg) {
+		if cfg.Credentials.PostHog.APIKey == "" {
+			log.Printf("config: warning: posthog api_key is empty")
+		}
+		if cfg.Credentials.PostHog.ProjectID == "" {
+			log.Printf("config: warning: posthog project_id is empty")
+		}
+		if cfg.Credentials.PostHog.Host == "" {
+			log.Printf("config: warning: posthog host is empty")
+		}
 	}
-	if cfg.Credentials.PostHog.ProjectID == "" {
-		log.Printf("config: warning: posthog project_id is empty")
+}
+
+func hasStripeProduct(cfg *Config) bool {
+	for _, p := range cfg.Products {
+		if p.Stripe.ProductID != "" {
+			return true
+		}
 	}
-	if cfg.Credentials.PostHog.Host == "" {
-		log.Printf("config: warning: posthog host is empty")
+	return false
+}
+
+func hasPostHogProduct(cfg *Config) bool {
+	for _, p := range cfg.Products {
+		if p.PostHog.HostFilter != "" {
+			return true
+		}
 	}
+	return false
 }

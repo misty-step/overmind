@@ -11,10 +11,13 @@ import (
 	"time"
 )
 
-// escapeHogQLLike escapes special characters for ClickHouse LIKE clauses.
-// Order matters: backslash first, then the wildcards.
+// escapeHogQLLike escapes special characters for ClickHouse LIKE clauses
+// embedded in HogQL string literals.
+// Escapes: single quotes (SQL injection), backslash, and LIKE wildcards.
+// Order matters: backslash first, then quotes, then wildcards.
 func escapeHogQLLike(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `'`, `''`) // ClickHouse escapes ' as ''
 	s = strings.ReplaceAll(s, `%`, `\%`)
 	s = strings.ReplaceAll(s, `_`, `\_`)
 	return s

@@ -12,11 +12,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// Load config.
 	cfg, err := config.Load("")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	// Initialize providers.
@@ -30,8 +36,7 @@ func main() {
 	// Initialize store.
 	s, err := store.Open("")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening store: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("opening store: %w", err)
 	}
 	defer s.Close()
 
@@ -44,7 +49,8 @@ func main() {
 	// Run program.
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := prog.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }

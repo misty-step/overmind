@@ -31,11 +31,13 @@ func CheckHealth(ctx context.Context, domain string) (*HealthResult, error) {
 	resp, err := client.Do(req)
 	elapsed := time.Since(start).Milliseconds()
 	if err != nil {
+		// Network errors (DNS failure, timeout, connection refused) mean the site is down.
+		// Return nil error because "down" is a valid health check result, not an error condition.
 		return &HealthResult{
 			Status:       "down",
 			ResponseTime: elapsed,
 			StatusCode:   0,
-		}, err
+		}, nil
 	}
 	defer resp.Body.Close()
 

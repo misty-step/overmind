@@ -22,29 +22,17 @@ go build ./...
 
 ## Configuration
 
-Create `~/.overmind/config.yaml`:
+Copy the example config and customize:
 
-```yaml
-credentials:
-  stripe:
-    secret_key: ${STRIPE_SECRET_KEY}
-  posthog:
-    api_key: ${POSTHOG_PERSONAL_API_KEY}
-    project_id: "12345"
-    host: https://us.i.posthog.com
-
-products:
-  - name: MyApp
-    domain: myapp.com
-    stripe_id: prod_xxx
-    posthog_host: myapp.com
-```
-
-Or set environment variables:
 ```bash
-export STRIPE_SECRET_KEY=sk_live_xxx
-export POSTHOG_PERSONAL_API_KEY=phx_xxx
+mkdir -p ~/.overmind
+cp config/config.example.yaml ~/.overmind/config.yaml
+# Edit with your Stripe/PostHog credentials
 ```
+
+See [config/config.example.yaml](config/config.example.yaml) for all options.
+
+Environment variables can be referenced in the config via `${VAR_NAME}` syntax.
 
 ## Keybindings
 
@@ -57,16 +45,18 @@ export POSTHOG_PERSONAL_API_KEY=phx_xxx
 
 ## Architecture
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design.
+
 ```
 overmind/
 ├── main.go              # Entry point
 ├── internal/
 │   ├── config/          # YAML config with env expansion
-│   ├── domain/          # Types + provider interfaces
-│   ├── providers/       # PostHog, Stripe, health clients
-│   ├── store/           # SQLite cache for history
+│   ├── domain/          # Core types (Product, Metrics)
+│   ├── providers/       # PostHog, Stripe, health + MetricsFetcher
+│   ├── store/           # SQLite cache for trends
 │   └── tui/             # Bubble Tea terminal UI
-└── config/products.yaml # Example config
+└── config/              # Example configuration
 ```
 
 ## Install via Homebrew (coming soon)

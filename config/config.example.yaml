@@ -1,0 +1,33 @@
+# Overmind Configuration
+# Copy to ~/.overmind/config.yaml and fill in values
+
+products:
+  - name: MyApp
+    domain: myapp.com
+    posthog:
+      host_filter: "myapp.com"
+    stripe:
+      product_id: prod_xxx  # From Stripe dashboard
+
+  - name: AnotherApp
+    domain: another.app
+    posthog:
+      host_filter: "another.app"
+    # No stripe section = no revenue tracking
+
+credentials:
+  stripe:
+    # Stripe secret key (sk_live_xxx or sk_test_xxx)
+    # Can use env var: ${MASTER_STRIPE_SECRET_KEY}
+    secret_key: ${MASTER_STRIPE_SECRET_KEY}
+
+  posthog:
+    # Personal API key from PostHog settings
+    # Can use env var: ${POSTHOG_PERSONAL_API_KEY}
+    api_key: ${POSTHOG_PERSONAL_API_KEY}
+
+    # Project ID (find in PostHog URL: /project/XXXXX)
+    project_id: "12345"
+
+    # PostHog host (us.i.posthog.com or eu.i.posthog.com)
+    host: "https://us.i.posthog.com"

@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/NimbleMarkets/ntcharts/sparkline"
@@ -16,15 +15,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/phaedrus/overmind/internal/domain"
 	"github.com/phaedrus/overmind/internal/providers"
-	"github.com/phaedrus/overmind/internal/store"
-	"golang.org/x/sync/errgroup"
 )
 
 type Model struct {
-	products  []domain.Product
-	metrics   map[string]*domain.Metrics // keyed by product name
-	providers *providers.Providers
-	store     *store.Store
+	products []domain.Product
+	metrics  map[string]*domain.Metrics // keyed by product name
+	fetcher  *providers.MetricsFetcher
 
 	loading  bool
 	spinner  spinner.Model
@@ -51,7 +47,6 @@ const (
 )
 
 const columnGap = 2
-const trendDays = 7
 
 type columnWidths struct {
 	name    int
@@ -65,10 +60,11 @@ type columnWidths struct {
 }
 
 func (c columnWidths) totalWidth() int {
-	if c.name == 0 && c.domain == 0 && c.visits == 0 && c.trend == 0 && c.mrr == 0 && c.subs == 0 && c.health == 0 && c.latency == 0 {
+	sum := c.name + c.domain + c.visits + c.trend + c.mrr + c.subs + c.health + c.latency
+	if sum == 0 {
 		return 0
 	}
-	return c.name + c.domain + c.visits + c.trend + c.mrr + c.subs + c.health + c.latency + columnGap*7
+	return sum + columnGap*7
 }
 
 // Messages
@@ -77,20 +73,19 @@ type metricsLoadedMsg struct {
 }
 type metricsErrorMsg struct{ err error }
 
-func New(products []domain.Product, p *providers.Providers, s *store.Store) *Model {
+func New(products []domain.Product, f *providers.MetricsFetcher) *Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(ColorTraction)
 
 	return &Model{
-		products:  products,
-		metrics:   make(map[string]*domain.Metrics),
-		providers: p,
-		store:     s,
-		spinner:   sp,
-		loading:   true,
-		sortKey:   sortByMRR,
-		sortDesc:  true,
+		products: products,
+		metrics:  make(map[string]*domain.Metrics),
+		fetcher:  f,
+		spinner:  sp,
+		loading:  true,
+		sortKey:  sortByMRR,
+		sortDesc: true,
 	}
 }
 
@@ -509,8 +504,8 @@ func (m *Model) sortProducts() {
 			}
 			return an < bn
 		case sortByHealth:
-			ah := healthRank(statusFor(ma))
-			bh := healthRank(statusFor(mb))
+			ah := healthRank(metricHealth(ma))
+			bh := healthRank(metricHealth(mb))
 			if ah == bh {
 				return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 			}
@@ -601,25 +596,25 @@ func (m *Model) calcColumnWidths() columnWidths {
 	}
 }
 
-func metricMRR(metrics *domain.Metrics) int64 {
-	if metrics == nil {
+func metricMRR(m *domain.Metrics) int64 {
+	if m == nil {
 		return 0
 	}
-	return metrics.MRR
+	return m.MRR
 }
 
-func metricVisits(metrics *domain.Metrics) int64 {
-	if metrics == nil {
+func metricVisits(m *domain.Metrics) int64 {
+	if m == nil {
 		return 0
 	}
-	return metrics.Visits
+	return m.Visits
 }
 
-func statusFor(metrics *domain.Metrics) string {
-	if metrics == nil {
+func metricHealth(m *domain.Metrics) string {
+	if m == nil {
 		return ""
 	}
-	return metrics.HealthStatus
+	return m.HealthStatus
 }
 
 func healthRank(status string) int {
@@ -711,31 +706,6 @@ func formatNumber(value int64) string {
 	return b.String()
 }
 
-func buildVisitsHistory(metrics []*domain.Metrics, now time.Time, days int) []int64 {
-	if days <= 0 {
-		return nil
-	}
-
-	loc := now.Location()
-	dayVisits := make(map[string]int64, days)
-	for _, metric := range metrics {
-		if metric == nil {
-			continue
-		}
-		ts := metric.Timestamp.In(loc)
-		day := time.Date(ts.Year(), ts.Month(), ts.Day(), 0, 0, 0, 0, loc)
-		dayVisits[day.Format("2006-01-02")] = metric.Visits
-	}
-
-	history := make([]int64, 0, days)
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -(days - 1))
-	for i := 0; i < days; i++ {
-		day := start.AddDate(0, 0, i)
-		history = append(history, dayVisits[day.Format("2006-01-02")])
-	}
-	return history
-}
-
 func renderSparkline(values []int64, width int, style lipgloss.Style) string {
 	if width <= 0 {
 		return ""
@@ -757,89 +727,13 @@ func renderSparkline(values []int64, width int, style lipgloss.Style) string {
 	return line.View()
 }
 
-// fetchMetrics returns a command that fetches all metrics.
+// fetchMetrics returns a command that fetches all metrics concurrently.
 func (m *Model) fetchMetrics() tea.Cmd {
-	// Copy products slice to avoid data race with sortProducts in Update.
-	products := append([]domain.Product(nil), m.products...)
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		now := time.Now()
-		weekAgo := now.AddDate(0, 0, -7)
-		trendStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(trendDays - 1))
-		var metrics sync.Map
-
-		group, ctx := errgroup.WithContext(ctx)
-
-		for _, p := range products {
-			p := p
-			group.Go(func() error {
-				metric := &domain.Metrics{
-					ProductName: p.Name,
-					Timestamp:   now,
-				}
-
-				// Fetch PostHog analytics.
-				if p.PostHogHost != "" && m.providers.PostHog != nil {
-					analytics, err := m.providers.PostHog.GetPageviews(ctx, p.PostHogHost, weekAgo, now)
-					if err == nil {
-						metric.Visits = analytics.Pageviews
-						metric.Uniques = analytics.Visitors
-						// PostHog bounce rate not available in this query.
-					}
-				}
-
-				// Fetch Stripe MRR.
-				if p.StripeID != "" && m.providers.Stripe != nil {
-					mrr, subs, err := m.providers.Stripe.GetMRRForProduct(ctx, p.StripeID)
-					if err == nil {
-						metric.MRR = mrr
-						metric.Subscribers = subs
-					}
-				}
-
-				// Health check.
-				if p.Domain != "" {
-					health, err := providers.CheckHealth(ctx, p.Domain)
-					if err == nil {
-						metric.HealthStatus = health.Status
-						metric.ResponseTime = health.ResponseTime
-					}
-				}
-
-				// Cache to store.
-				if m.store != nil {
-					_ = m.store.SaveMetrics(ctx, metric)
-					history, err := m.store.GetMetricsRange(ctx, p.Name, trendStart, now)
-					if err == nil {
-						metric.VisitsHistory = buildVisitsHistory(history, now, trendDays)
-					}
-				}
-
-				metrics.Store(p.Name, metric)
-				return nil
-			})
-		}
-
-		if err := group.Wait(); err != nil {
-			return metricsErrorMsg{err: err}
-		}
-
-		collected := make(map[string]*domain.Metrics, len(products))
-		metrics.Range(func(key, value any) bool {
-			name, ok := key.(string)
-			if !ok {
-				return true
-			}
-			metric, ok := value.(*domain.Metrics)
-			if !ok {
-				return true
-			}
-			collected[name] = metric
-			return true
-		})
-
-		return metricsLoadedMsg{metrics: collected}
+		metrics := m.fetcher.FetchAll(ctx, m.products)
+		return metricsLoadedMsg{metrics: metrics}
 	}
 }

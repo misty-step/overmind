@@ -35,9 +35,11 @@ func main() {
 	}
 	defer s.Close()
 
+	fetcher := p.NewMetricsFetcher(s)
+
 	// Create TUI model.
 	products := cfg.ToProducts()
-	model := tui.New(products, p, s)
+	model := tui.New(products, fetcher)
 
 	// Run program.
 	prog := tea.NewProgram(model, tea.WithAltScreen())

@@ -39,7 +39,7 @@ func CheckHealth(ctx context.Context, domain string) (*HealthResult, error) {
 	}
 	defer resp.Body.Close()
 
-	status := "down"
+	var status string
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 400:
 		status = "healthy"

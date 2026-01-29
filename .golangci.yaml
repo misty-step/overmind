@@ -13,19 +13,18 @@ linters:
     - govet
     - unused
     - gosec
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-linters-settings:
-  goimports:
-    local-prefixes: github.com/phaedrus/overmind
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/phaedrus/overmind

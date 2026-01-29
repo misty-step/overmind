@@ -3,13 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/phaedrus/overmind/internal/domain"
 	"gopkg.in/yaml.v3"
+
+	"github.com/phaedrus/overmind/internal/domain"
 )
 
 type Config struct {
@@ -85,7 +85,9 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	warnIfEmptyCredentials(&cfg)
+	if err := validateCredentials(&cfg); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -128,24 +130,27 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-func warnIfEmptyCredentials(cfg *Config) {
-	// Only warn about Stripe credentials if at least one product uses Stripe
-	if hasStripeProduct(cfg) && cfg.Credentials.Stripe.SecretKey == "" {
-		log.Printf("config: warning: stripe secret_key is empty")
+func validateCredentials(cfg *Config) error {
+	var errs []string
+
+	if hasStripeProduct(cfg) && strings.TrimSpace(cfg.Credentials.Stripe.SecretKey) == "" {
+		errs = append(errs, "missing stripe secret_key; required because a product has stripe product_id")
 	}
 
-	// Only warn about PostHog credentials if at least one product uses PostHog
 	if hasPostHogProduct(cfg) {
-		if cfg.Credentials.PostHog.APIKey == "" {
-			log.Printf("config: warning: posthog api_key is empty")
+		if strings.TrimSpace(cfg.Credentials.PostHog.APIKey) == "" {
+			errs = append(errs, "missing posthog api_key; required because a product has posthog host_filter")
 		}
-		if cfg.Credentials.PostHog.ProjectID == "" {
-			log.Printf("config: warning: posthog project_id is empty")
+		if strings.TrimSpace(cfg.Credentials.PostHog.ProjectID) == "" {
+			errs = append(errs, "missing posthog project_id; required because a product has posthog host_filter")
 		}
-		if cfg.Credentials.PostHog.Host == "" {
-			log.Printf("config: warning: posthog host is empty")
-		}
+		// Note: posthog host is optional; client defaults to https://us.i.posthog.com
 	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("config: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 func hasStripeProduct(cfg *Config) bool {

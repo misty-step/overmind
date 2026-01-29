@@ -20,7 +20,7 @@ go build -o overmind .
 ### Using Go Install
 
 ```bash
-go install github.com/phaedrus/overmind@latest
+go install github.com/misty-step/overmind@latest
 overmind
 ```
 
@@ -36,8 +36,16 @@ mkdir -p ~/.overmind
 
 ### 2. Copy Example Config
 
+If you cloned the repo:
+
 ```bash
 cp config/config.example.yaml ~/.overmind/config.yaml
+```
+
+If you used `go install`:
+
+```bash
+curl -o ~/.overmind/config.yaml https://raw.githubusercontent.com/misty-step/overmind/main/config/config.example.yaml
 ```
 
 ### 3. Set Up Credentials
@@ -49,7 +57,7 @@ You can either hardcode credentials in the config or use environment variables w
 Add to your shell profile (`~/.zshrc`, `~/.bashrc`, etc.):
 
 ```bash
-export STRIPE_SECRET_KEY="sk_live_..."
+export MASTER_STRIPE_SECRET_KEY="sk_live_..."
 export POSTHOG_PERSONAL_API_KEY="phx_..."
 export POSTHOG_PROJECT_ID="123456"
 export POSTHOG_HOST="https://us.i.posthog.com"
@@ -60,7 +68,7 @@ Then in your config:
 ```yaml
 credentials:
   stripe:
-    secret_key: ${STRIPE_SECRET_KEY}
+    secret_key: ${MASTER_STRIPE_SECRET_KEY}
   posthog:
     api_key: ${POSTHOG_PERSONAL_API_KEY}
     project_id: ${POSTHOG_PROJECT_ID}
@@ -138,7 +146,8 @@ Each product can have:
 Run the CLI:
 
 ```bash
-./overmind
+overmind        # if installed with go install
+./overmind      # if built from source
 ```
 
 You should see the TUI with your products. If something is misconfigured, you'll see an error message explaining what's missing.
@@ -158,5 +167,5 @@ Overmind stores cached metrics in `~/.overmind/cache/metrics.db` (SQLite). This 
 To clear the cache:
 
 ```bash
-rm -rf ~/.overmind/cache
+rm -r ~/.overmind/cache
 ```

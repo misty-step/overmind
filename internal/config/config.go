@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/phaedrus/overmind/internal/domain"
 	"gopkg.in/yaml.v3"
+
+	"github.com/phaedrus/overmind/internal/domain"
 )
 
 type Config struct {

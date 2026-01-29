@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/phaedrus/overmind/internal/domain"
 	_ "modernc.org/sqlite"
+
+	"github.com/phaedrus/overmind/internal/domain"
 )
 
 type Store struct {

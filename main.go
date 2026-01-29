@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/phaedrus/overmind/internal/config"
 	"github.com/phaedrus/overmind/internal/providers"
 	"github.com/phaedrus/overmind/internal/store"

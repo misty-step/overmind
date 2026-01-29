@@ -5,9 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/phaedrus/overmind/internal/domain"
 	"github.com/phaedrus/overmind/internal/store"
-	"golang.org/x/sync/errgroup"
 )
 
 const trendDays = 7

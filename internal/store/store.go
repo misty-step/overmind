@@ -17,15 +17,22 @@ type Store struct {
 }
 
 // DefaultPath returns ~/.overmind/cache/metrics.db
-func DefaultPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".overmind", "cache", "metrics.db")
+func DefaultPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("store: resolve home dir: %w", err)
+	}
+	return filepath.Join(home, ".overmind", "cache", "metrics.db"), nil
 }
 
 // Open opens or creates the SQLite database
 func Open(path string) (*Store, error) {
 	if path == "" {
-		path = DefaultPath()
+		defaultPath, err := DefaultPath()
+		if err != nil {
+			return nil, err
+		}
+		path = defaultPath
 	}
 
 	dir := filepath.Dir(path)

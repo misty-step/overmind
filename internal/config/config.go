@@ -128,22 +128,25 @@ func validateConfig(cfg *Config) error {
 }
 
 func validateCredentials(cfg *Config) error {
-	if hasStripeProduct(cfg) && cfg.Credentials.Stripe.SecretKey == "" {
-		return errors.New("config: missing stripe secret_key; required because a product has stripe product_id")
+	var errs []string
+
+	if hasStripeProduct(cfg) && strings.TrimSpace(cfg.Credentials.Stripe.SecretKey) == "" {
+		errs = append(errs, "missing stripe secret_key; required because a product has stripe product_id")
 	}
 
 	if hasPostHogProduct(cfg) {
-		if cfg.Credentials.PostHog.APIKey == "" {
-			return errors.New("config: missing posthog api_key; required because a product has posthog host_filter")
+		if strings.TrimSpace(cfg.Credentials.PostHog.APIKey) == "" {
+			errs = append(errs, "missing posthog api_key; required because a product has posthog host_filter")
 		}
-		if cfg.Credentials.PostHog.ProjectID == "" {
-			return errors.New("config: missing posthog project_id; required because a product has posthog host_filter")
+		if strings.TrimSpace(cfg.Credentials.PostHog.ProjectID) == "" {
+			errs = append(errs, "missing posthog project_id; required because a product has posthog host_filter")
 		}
-		if cfg.Credentials.PostHog.Host == "" {
-			return errors.New("config: missing posthog host; required because a product has posthog host_filter")
-		}
+		// Note: posthog host is optional; client defaults to https://us.i.posthog.com
 	}
 
+	if len(errs) > 0 {
+		return fmt.Errorf("config: %s", strings.Join(errs, "; "))
+	}
 	return nil
 }
 

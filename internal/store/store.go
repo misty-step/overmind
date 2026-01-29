@@ -29,7 +29,7 @@ func Open(path string) (*Store, error) {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("store: create dir %s: %w", dir, err)
 	}
 
@@ -149,7 +149,9 @@ func (s *Store) GetMetricsRange(ctx context.Context, productName string, from, t
 	if err != nil {
 		return nil, fmt.Errorf("store: select metrics range: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var metrics []*domain.Metrics
 	for rows.Next() {

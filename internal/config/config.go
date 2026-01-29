@@ -64,6 +64,7 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	// #nosec G304 -- config path is user-supplied and expected to be a file on disk.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("config: read %s: %w", path, err)

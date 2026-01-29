@@ -39,7 +39,9 @@ func CheckHealth(ctx context.Context, domain string) (*HealthResult, error) {
 			StatusCode:   0,
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	var status string
 	switch {

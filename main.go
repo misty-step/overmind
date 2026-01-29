@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/phaedrus/overmind/internal/config"
 	"github.com/phaedrus/overmind/internal/providers"
 	"github.com/phaedrus/overmind/internal/store"
@@ -18,7 +19,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
 	// Load config.
 	cfg, err := config.Load("")
 	if err != nil {
@@ -38,7 +39,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("opening store: %w", err)
 	}
-	defer s.Close()
+	defer func() {
+		if cerr := s.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing store: %w", cerr)
+		}
+	}()
 
 	fetcher := p.NewMetricsFetcher(s)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/phaedrus/overmind/internal/domain"
 	"github.com/phaedrus/overmind/internal/providers"
 )
@@ -280,14 +281,14 @@ type columnStyleSet struct {
 
 func columnStyles(widths columnWidths, base lipgloss.Style) columnStyleSet {
 	return columnStyleSet{
-		name:    base.Copy().Width(max(0, widths.name)),
-		domain:  base.Copy().Width(max(0, widths.domain)),
-		visits:  base.Copy().Width(max(0, widths.visits)).Align(lipgloss.Right),
-		trend:   base.Copy().Width(max(0, widths.trend)).Align(lipgloss.Center),
-		mrr:     base.Copy().Width(max(0, widths.mrr)).Align(lipgloss.Right),
-		subs:    base.Copy().Width(max(0, widths.subs)).Align(lipgloss.Right),
-		health:  base.Copy().Width(max(0, widths.health)).Align(lipgloss.Center),
-		latency: base.Copy().Width(max(0, widths.latency)).Align(lipgloss.Right),
+		name:    base.Width(max(0, widths.name)),
+		domain:  base.Width(max(0, widths.domain)),
+		visits:  base.Width(max(0, widths.visits)).Align(lipgloss.Right),
+		trend:   base.Width(max(0, widths.trend)).Align(lipgloss.Center),
+		mrr:     base.Width(max(0, widths.mrr)).Align(lipgloss.Right),
+		subs:    base.Width(max(0, widths.subs)).Align(lipgloss.Right),
+		health:  base.Width(max(0, widths.health)).Align(lipgloss.Center),
+		latency: base.Width(max(0, widths.latency)).Align(lipgloss.Right),
 	}
 }
 
@@ -322,7 +323,7 @@ func (m *Model) renderRow(product domain.Product, metrics *domain.Metrics, selec
 	}
 
 	styles := columnStyles(widths, rowStyle)
-	nameCell := nameStyle.Copy().Width(max(0, widths.name)).Render(truncate(product.Name, widths.name))
+	nameCell := nameStyle.Width(max(0, widths.name)).Render(truncate(product.Name, widths.name))
 	domainCell := styles.domain.Render(truncate(product.Domain, widths.domain))
 
 	visits := "0"
@@ -566,19 +567,18 @@ func (m *Model) calcColumnWidths() columnWidths {
 		return fixed
 	}
 
-	name := minName
-	domain := minDomain
-
-	if available < minNameFloor+minDomainFloor {
+	var name, domain int
+	switch {
+	case available < minNameFloor+minDomainFloor:
 		name = max(0, available/2)
 		domain = max(0, available-name)
-	} else if available < minName+minDomain {
+	case available < minName+minDomain:
 		name = max(minNameFloor, (available*minName)/(minName+minDomain))
 		domain = max(minDomainFloor, available-name)
 		if name+domain > available {
 			domain = max(0, available-name)
 		}
-	} else {
+	default:
 		extra := available - (minName + minDomain)
 		name = minName + extra/3
 		domain = minDomain + extra - extra/3

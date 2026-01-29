@@ -45,9 +45,9 @@ type stripeSubscriptionItem struct {
 }
 
 type stripePrice struct {
-	Product    string                 `json:"product"`
-	UnitAmount *int64                 `json:"unit_amount"`
-	Recurring  *stripePriceRecurring  `json:"recurring"`
+	Product    string                `json:"product"`
+	UnitAmount *int64                `json:"unit_amount"`
+	Recurring  *stripePriceRecurring `json:"recurring"`
 }
 
 type stripePriceRecurring struct {
@@ -130,7 +130,7 @@ func (c *StripeClient) GetMRRForProduct(ctx context.Context, productID string) (
 						amount = amount * 52 / 12
 					case "day":
 						amount = amount * 365 / 12
-					// "month" is already monthly, no change needed
+						// "month" is already monthly, no change needed
 					}
 				}
 

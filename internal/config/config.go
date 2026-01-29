@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/phaedrus/overmind/internal/domain"
 	"gopkg.in/yaml.v3"
+
+	"github.com/phaedrus/overmind/internal/domain"
 )
 
 type Config struct {
@@ -64,6 +65,7 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
+	// #nosec G304 -- config path is user-supplied and expected to be a file on disk.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("config: read %s: %w", path, err)

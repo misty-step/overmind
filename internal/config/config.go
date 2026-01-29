@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +82,9 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	warnIfEmptyCredentials(&cfg)
+	if err := validateCredentials(&cfg); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
 }
@@ -126,24 +127,24 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-func warnIfEmptyCredentials(cfg *Config) {
-	// Only warn about Stripe credentials if at least one product uses Stripe
+func validateCredentials(cfg *Config) error {
 	if hasStripeProduct(cfg) && cfg.Credentials.Stripe.SecretKey == "" {
-		log.Printf("config: warning: stripe secret_key is empty")
+		return errors.New("config: missing stripe secret_key; required because a product has stripe product_id")
 	}
 
-	// Only warn about PostHog credentials if at least one product uses PostHog
 	if hasPostHogProduct(cfg) {
 		if cfg.Credentials.PostHog.APIKey == "" {
-			log.Printf("config: warning: posthog api_key is empty")
+			return errors.New("config: missing posthog api_key; required because a product has posthog host_filter")
 		}
 		if cfg.Credentials.PostHog.ProjectID == "" {
-			log.Printf("config: warning: posthog project_id is empty")
+			return errors.New("config: missing posthog project_id; required because a product has posthog host_filter")
 		}
 		if cfg.Credentials.PostHog.Host == "" {
-			log.Printf("config: warning: posthog host is empty")
+			return errors.New("config: missing posthog host; required because a product has posthog host_filter")
 		}
 	}
+
+	return nil
 }
 
 func hasStripeProduct(cfg *Config) bool {

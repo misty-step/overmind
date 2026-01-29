@@ -12,6 +12,7 @@ type Product struct {
 type Metrics struct {
 	ProductName string
 	Timestamp   time.Time
+	Errors      []string
 
 	// Traffic (PostHog)
 	Visits     int64

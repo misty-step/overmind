@@ -49,6 +49,7 @@ func (f *MetricsFetcher) FetchAll(ctx context.Context, products []domain.Product
 		})
 	}
 
+	// Best-effort wait; individual fetch errors are captured per metric.
 	_ = group.Wait()
 	return collected
 }
@@ -63,6 +64,8 @@ func (f *MetricsFetcher) fetchProductMetrics(ctx context.Context, p domain.Produ
 		if analytics, err := f.posthog.GetPageviews(ctx, p.PostHogHost, weekAgo, now); err == nil {
 			metric.Visits = analytics.Pageviews
 			metric.Uniques = analytics.Visitors
+		} else {
+			metric.Errors = append(metric.Errors, "PostHog: "+err.Error())
 		}
 	}
 
@@ -70,6 +73,8 @@ func (f *MetricsFetcher) fetchProductMetrics(ctx context.Context, p domain.Produ
 		if mrr, subs, err := f.stripe.GetMRRForProduct(ctx, p.StripeID); err == nil {
 			metric.MRR = mrr
 			metric.Subscribers = subs
+		} else {
+			metric.Errors = append(metric.Errors, "Stripe: "+err.Error())
 		}
 	}
 
@@ -77,10 +82,13 @@ func (f *MetricsFetcher) fetchProductMetrics(ctx context.Context, p domain.Produ
 		if health, err := CheckHealth(ctx, p.Domain); err == nil {
 			metric.HealthStatus = health.Status
 			metric.ResponseTime = health.ResponseTime
+		} else {
+			metric.Errors = append(metric.Errors, "Health: "+err.Error())
 		}
 	}
 
 	if f.store != nil {
+		// Best-effort cache write; live metrics should still surface even if storage fails.
 		_ = f.store.SaveMetrics(ctx, metric)
 		if history, err := f.store.GetMetricsRange(ctx, p.Name, trendStart, now); err == nil {
 			metric.VisitsHistory = buildVisitsHistory(history, now, trendDays)

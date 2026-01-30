@@ -64,7 +64,8 @@ func Load(path string) (*Config, error) {
 		}
 	}
 
-	// #nosec G304 -- config path is user-supplied and expected to be a file on disk.
+	// #nosec G304 -- Path is either explicitly provided by the user via CLI arg,
+	// or defaults to ~/.overmind/config.yaml. No untrusted input reaches this path.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("config: read %s: %w", path, err)

@@ -31,11 +31,21 @@ type PostHogClient struct {
 }
 
 func NewPostHogClient(apiKey, projectID, host string) *PostHogClient {
+	host = strings.TrimSpace(host)
 	if host == "" {
 		host = "https://us.i.posthog.com"
-	} else if !strings.HasPrefix(host, "https://") {
-		host = strings.TrimPrefix(host, "http://")
-		host = "https://" + host
+	} else {
+		lower := strings.ToLower(host)
+		if strings.HasPrefix(lower, "https://") {
+			// Already HTTPS, normalize case
+			host = "https://" + host[len("https://"):]
+		} else if i := strings.Index(host, "://"); i != -1 {
+			// Strip any scheme (http, ftp, etc.) and use https
+			host = "https://" + host[i+3:]
+		} else {
+			// Bare host, prepend https
+			host = "https://" + host
+		}
 	}
 	return &PostHogClient{
 		apiKey:    apiKey,

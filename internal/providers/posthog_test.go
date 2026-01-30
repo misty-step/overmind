@@ -81,6 +81,26 @@ func TestNewPostHogClient_HostValidation(t *testing.T) {
 			host: "us.i.posthog.com",
 			want: "https://us.i.posthog.com",
 		},
+		{
+			name: "uppercase HTTPS normalized",
+			host: "HTTPS://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "uppercase HTTP upgraded",
+			host: "HTTP://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "unsupported scheme replaced",
+			host: "ftp://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "whitespace trimmed",
+			host: "  http://example.com  ",
+			want: "https://example.com",
+		},
 	}
 
 	for _, tt := range tests {

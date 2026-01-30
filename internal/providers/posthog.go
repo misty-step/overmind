@@ -33,6 +33,9 @@ type PostHogClient struct {
 func NewPostHogClient(apiKey, projectID, host string) *PostHogClient {
 	if host == "" {
 		host = "https://us.i.posthog.com"
+	} else if !strings.HasPrefix(host, "https://") {
+		host = strings.TrimPrefix(host, "http://")
+		host = "https://" + host
 	}
 	return &PostHogClient{
 		apiKey:    apiKey,

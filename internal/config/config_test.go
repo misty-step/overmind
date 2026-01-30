@@ -103,14 +103,14 @@ func TestValidateCredentials(t *testing.T) {
 			cfg: Config{
 				Products: []ProductConfig{{Name: "App", Domain: "app.com", Stripe: StripeConfig{ProductID: "prod_1"}}},
 			},
-			wantErrs: []string{"missing stripe secret_key"},
+			wantErrs: []string{"missing stripe secret_key; required because a product has stripe product_id"},
 		},
 		{
 			name: "posthog product requires api key and project id",
 			cfg: Config{
 				Products: []ProductConfig{{Name: "App", Domain: "app.com", PostHog: PostHogConfig{HostFilter: "app.com"}}},
 			},
-			wantErrs: []string{"missing posthog api_key", "missing posthog project_id"},
+			wantErrs: []string{"missing posthog api_key; required because a product has posthog host_filter", "missing posthog project_id; required because a product has posthog host_filter"},
 		},
 		{
 			name: "stripe and posthog with creds ok",

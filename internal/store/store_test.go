@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -137,8 +138,13 @@ func TestGetLatestMetrics(t *testing.T) {
 				if got == nil {
 					t.Fatalf("GetLatestMetrics() = nil, want metrics")
 				}
-				if got.Timestamp.Unix() != 200 {
-					t.Fatalf("GetLatestMetrics() timestamp = %d, want 200", got.Timestamp.Unix())
+				want := &domain.Metrics{
+					ProductName: "App",
+					Timestamp:   time.Unix(200, 0),
+					Visits:      10,
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("GetLatestMetrics() = %#v, want %#v", got, want)
 				}
 			},
 		},
@@ -193,12 +199,13 @@ func TestGetMetricsRange(t *testing.T) {
 				if err != nil {
 					t.Fatalf("GetMetricsRange() error = %v", err)
 				}
-				if len(got) != 3 {
-					t.Fatalf("GetMetricsRange() len = %d, want 3", len(got))
+				want := []*domain.Metrics{
+					{ProductName: "App", Timestamp: time.Unix(100, 0), Visits: 1},
+					{ProductName: "App", Timestamp: time.Unix(200, 0), Visits: 2},
+					{ProductName: "App", Timestamp: time.Unix(300, 0), Visits: 3},
 				}
-				if got[0].Timestamp.Unix() != 100 || got[1].Timestamp.Unix() != 200 || got[2].Timestamp.Unix() != 300 {
-					t.Fatalf("GetMetricsRange() timestamps = [%d %d %d], want [100 200 300]",
-						got[0].Timestamp.Unix(), got[1].Timestamp.Unix(), got[2].Timestamp.Unix())
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("GetMetricsRange() = %#v, want %#v", got, want)
 				}
 			},
 		},

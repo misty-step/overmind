@@ -54,3 +54,61 @@ func TestEscapeHogQLLike(t *testing.T) {
 		})
 	}
 }
+
+func TestNewPostHogClient_HostValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		want string
+	}{
+		{
+			name: "empty host defaults",
+			host: "",
+			want: "https://us.i.posthog.com",
+		},
+		{
+			name: "http upgraded to https",
+			host: "http://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "https kept",
+			host: "https://app.posthog.com",
+			want: "https://app.posthog.com",
+		},
+		{
+			name: "bare host gets https",
+			host: "us.i.posthog.com",
+			want: "https://us.i.posthog.com",
+		},
+		{
+			name: "uppercase HTTPS normalized",
+			host: "HTTPS://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "uppercase HTTP upgraded",
+			host: "HTTP://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "unsupported scheme replaced",
+			host: "ftp://example.com",
+			want: "https://example.com",
+		},
+		{
+			name: "whitespace trimmed",
+			host: "  http://example.com  ",
+			want: "https://example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewPostHogClient("key", "proj", tt.host)
+			if client.host != tt.want {
+				t.Errorf("NewPostHogClient host = %q, want %q", client.host, tt.want)
+			}
+		})
+	}
+}
